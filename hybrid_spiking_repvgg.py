@@ -159,7 +159,10 @@ class HybridSpikingRepVGG(nn.Module):
                     out = block(out)
             stage[1].reset()
         out = self.gap(out)
-        out = out.view(out.size(0), -1)
+        if self.gap.step_mode == 's':
+            out = torch.flatten(out, 1)
+        elif self.gap.step_mode == 'm':
+            out = torch.flatten(out, 2)
         out = self.linear(out)
         return out
 
