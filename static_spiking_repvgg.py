@@ -19,7 +19,6 @@ class StaticSpikingRepVGGBlock(nn.Module):
         self.deploy = deploy
         self.groups = groups
         self.in_channels = in_channels
-        self.cnf = ConnectingFunction(cnf)
 
         assert kernel_size == 3
         assert padding == 1
@@ -41,8 +40,10 @@ class StaticSpikingRepVGGBlock(nn.Module):
 
         if (out_channels == in_channels and stride == 1):
             self.identity=nn.Identity()
+            self.cnf = ConnectingFunction(cnf)
         else:
             self.identity = None
+            self.cnf = None
 
         self.sn = spiking_neuron
         

@@ -20,7 +20,6 @@ class HybridSpikingRepVGGBlock(nn.Module):
         self.deploy = deploy
         self.groups = groups
         self.in_channels = in_channels
-        self.cnf = ConnectingFunction(cnf)
 
         assert kernel_size == 3
         assert padding == 1
@@ -43,9 +42,11 @@ class HybridSpikingRepVGGBlock(nn.Module):
         if (out_channels == in_channels and stride == 1):
             self.identity=nn.Identity()
             self.sn = spiking_neuron
+            self.cnf = ConnectingFunction(cnf)
         else:
             self.identity = None
             self.sn = neuron.IFNode(surrogate_function=surrogate.ATan(),detach_reset=True)
+            self.cnf = None
         
 
 

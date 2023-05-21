@@ -19,7 +19,6 @@ class SpikingRepVGGBlock(nn.Module):
         self.deploy = deploy
         self.groups = groups
         self.in_channels = in_channels
-        self.cnf = ConnectingFunction(cnf)
 
         assert kernel_size == 3
         assert padding == 1
@@ -41,8 +40,10 @@ class SpikingRepVGGBlock(nn.Module):
 
         if (out_channels == in_channels and stride == 1):
             self.identity=nn.Identity()
+            self.cnf = ConnectingFunction(cnf)
         else:
             self.identity = None
+            self.cnf = None
 
         self.sn = neuron.IFNode(surrogate_function=surrogate.ATan(),detach_reset=True)
         
@@ -159,7 +160,6 @@ g2_map = {l: 2 for l in optional_groupwise_layers}
 g4_map = {l: 4 for l in optional_groupwise_layers}
 
 def create_SpikingRepVGG_A0(deploy=False, use_checkpoint=False,cnf=None):
-    print(f"{cnf} HELLO WORD")
     return SpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=1000,
                   width_multiplier=[0.75, 0.75, 0.75, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
