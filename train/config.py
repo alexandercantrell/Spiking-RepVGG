@@ -55,6 +55,8 @@ _C.MODEL.RESUME = ''
 _C.MODEL.NUM_CLASSES = 1000
 # Label Smoothing
 _C.MODEL.LABEL_SMOOTHING = 0.1
+_C.MODEL.CNF = 'ADD'
+_C.MODEL.CUPY = None
 
 # -----------------------------------------------------------------------------
 # Training settings
@@ -171,6 +173,10 @@ def update_config(config, args):
     # merge from specific arguments
     if args.T:
         config.DATA.T = args.T
+    if args.cnf:
+        config.MODEL.CNF = args.cnf
+    if args.cupy:
+        config.MODEL.CUPY = args.cupy
     if args.scales_path:
         config.TRAIN.SCALES_PATH = args.scales_path
     if args.arch:
@@ -207,7 +213,7 @@ def update_config(config, args):
     # set local rank for distributed training
     config.LOCAL_RANK = args.local_rank
     # output folder
-    config.OUTPUT = os.path.join(config.OUTPUT, config.MODEL.ARCH, config.TAG)
+    config.OUTPUT = os.path.join(config.OUTPUT, config.MODEL.ARCH, f'{config.TAG}_{config.MODEL.CNF}')
     config.freeze()
 
 

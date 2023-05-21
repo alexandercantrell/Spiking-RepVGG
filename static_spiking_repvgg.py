@@ -164,63 +164,63 @@ optional_groupwise_layers = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26]
 g2_map = {l: 2 for l in optional_groupwise_layers}
 g4_map = {l: 4 for l in optional_groupwise_layers}
 
-def create_StaticSpikingRepVGG_A0(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_A0(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=1000,
-                  width_multiplier=[0.75, 0.75, 0.75, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[0.75, 0.75, 0.75, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_A1(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_A1(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=1000,
-                  width_multiplier=[1, 1, 1, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[1, 1, 1, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_A2(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_A2(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=1000,
-                  width_multiplier=[1.5, 1.5, 1.5, 2.75], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[1.5, 1.5, 1.5, 2.75], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_B0(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B0(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[1, 1, 1, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[1, 1, 1, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_B1(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B1(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[2, 2, 2, 4], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[2, 2, 2, 4], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_B1g2(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B1g2(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[2, 2, 2, 4], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[2, 2, 2, 4], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_B1g4(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B1g4(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[2, 2, 2, 4], override_groups_map=g4_map, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[2, 2, 2, 4], override_groups_map=g4_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
 
-def create_StaticSpikingRepVGG_B2(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B2(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_B2g2(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B2g2(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_B2g4(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B2g4(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=g4_map, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=g4_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
 
-def create_StaticSpikingRepVGG_B3(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B3(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[3, 3, 3, 5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[3, 3, 3, 5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_B3g2(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B3g2(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[3, 3, 3, 5], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[3, 3, 3, 5], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_B3g4(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_B3g4(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
-                  width_multiplier=[3, 3, 3, 5], override_groups_map=g4_map, deploy=deploy, use_checkpoint=use_checkpoint)
+                  width_multiplier=[3, 3, 3, 5], override_groups_map=g4_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf)
 
-def create_StaticSpikingRepVGG_D2se(deploy=False, use_checkpoint=False):
+def create_StaticSpikingRepVGG_D2se(deploy=False, use_checkpoint=False,cnf=None):
     return StaticSpikingRepVGG(num_blocks=[8, 14, 24, 1], num_classes=1000,
-                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=None, deploy=deploy, use_se=True, use_checkpoint=use_checkpoint)
+                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=None, deploy=deploy, use_se=True, use_checkpoint=use_checkpoint,cnf=cnf)
 
 
 func_dict = {

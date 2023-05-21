@@ -23,6 +23,7 @@ from train.optimizer import build_optimizer
 from static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
 from hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from spiking_repvgg import get_SpikingRepVGG_func_by_name
+from spikingjelly.activation_based import functional, neuron
 
 try:
     # noinspection PyUnresolvedReferences
@@ -64,7 +65,9 @@ def parse_option():
     # distributed training
     parser.add_argument("--local_rank", type=int, default=0, help='local rank for DistributedDataParallel')
 
-    parser.add_argument("-T",default=4,help='number of times to repeat image')
+    parser.add_argument("--cupy",action="store_true", help="set the neurons to use cupy backend")
+    parser.add_argument("--T",type=int,default=4,help='number of times to repeat image')
+    parser.add_argument("--cnf",type=str,default="ADD")
 
     args, unparsed = parser.parse_known_args()
 
@@ -82,13 +85,15 @@ def main(config):
     logger.info(f"Creating model:{config.MODEL.ARCH}")
     arch = config.MODEL.ARCH
     if 'StaticSpikingRepVGG' in arch:
-        model = get_StaticSpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint)
+        model = get_StaticSpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,cnf=config.MODEL.CNF)
     elif 'HybridSpikingRepVGG' in arch:
-        model = get_HybridSpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint)
+        model = get_HybridSpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,cnf=config.MODEL.CNF)
     elif 'SpikingRepVGG' in arch:
-        model = get_SpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint)
+        model = get_SpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,cnf=config.MODEL.CNF)
     else:
         raise NotImplementedError
+    if config.MODEL.CUPY:
+        functional.set_backend(model,'cupy',neuron.IFNode)
     optimizer = build_optimizer(config, model)
 
     logger.info(str(model))
