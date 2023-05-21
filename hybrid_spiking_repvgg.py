@@ -9,7 +9,7 @@ import torch
 import copy
 import torch.utils.checkpoint as checkpoint
 from spikingjelly.activation_based import neuron, layer, surrogate
-from utils.general import conv_bn
+from utils import conv_bn
 from connecting_function import ConnectingFunction
 
 
