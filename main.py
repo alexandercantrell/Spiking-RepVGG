@@ -56,7 +56,7 @@ def parse_option():
                         help="whether to use gradient checkpointing to save memory")
     parser.add_argument('--amp-opt-level', type=str, default='O0', choices=['O0', 'O1', 'O2'],  #TODO Note: use amp if you have it
                         help='mixed precision opt level, if O0, no amp is used')
-    parser.add_argument('--output', default='/your/path/to/save/dir', type=str, metavar='PATH',
+    parser.add_argument('--output', default='./logs/', type=str, metavar='PATH',
                         help='root of output folder, the full path is <output>/<model_name>/<tag> (default: output)')
     parser.add_argument('--tag', help='tag of experiment')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
