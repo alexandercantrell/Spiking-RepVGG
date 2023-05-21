@@ -297,6 +297,8 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
         if model_ema is not None:
             update_model_ema(config, dist.get_world_size(), model=model, model_ema=model_ema, cur_epoch=epoch, cur_iter=idx)
 
+        functional.reset_net(model)
+
         end = time.time()
 
         if idx % config.PRINT_FREQ == 0:
@@ -349,6 +351,8 @@ def validate(config, data_loader, model):
         loss_meter.update(loss.item(), target.size(0))
         acc1_meter.update(acc1.item(), target.size(0))
         acc5_meter.update(acc5.item(), target.size(0))
+
+        functional.reset_net(model)
 
         # measure elapsed time
         batch_time.update(time.time() - end)
