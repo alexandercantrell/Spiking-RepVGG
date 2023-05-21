@@ -131,7 +131,7 @@ class HybridSpikingRepVGG(nn.Module):
         self.stage2, self.sn2 = self._make_stage(int(128 * width_multiplier[1]), num_blocks[1], stride=2)
         self.stage3, self.sn3 = self._make_stage(int(256 * width_multiplier[2]), num_blocks[2], stride=2)
         self.stage4, self.sn4 = self._make_stage(int(512 * width_multiplier[3]), num_blocks[3], stride=2)
-        self.gap = layer.AdaptiveAvgPool2d(output_size=1)
+        self.gap = layer.AdaptiveAvgPool2d((1,1))
         self.linear = layer.Linear(int(512 * width_multiplier[3]), num_classes)
 
     def _make_stage(self, planes, num_blocks, stride):
