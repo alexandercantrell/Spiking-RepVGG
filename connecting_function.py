@@ -14,6 +14,6 @@ class ConnectingFunction(nn.Module):
         elif cnf == 'XOR':
             self.cnf = lambda x,y: x+y-(2*x*y)
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f'{cnf} is a connecting function that has not been implemented.')
     def forward(self,x,y):
         return self.cnf(x,y)
