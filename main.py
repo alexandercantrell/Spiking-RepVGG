@@ -94,6 +94,11 @@ def main(config):
         raise NotImplementedError
     if config.MODEL.CUPY:
         functional.set_backend(model,'cupy',neuron.IFNode)
+    if config.DATA.T > 0:
+        functional.set_step_mode(model,'m')
+    else:
+        functional.set_step_mode(model,'s')
+
     optimizer = build_optimizer(config, model)
 
     logger.info(str(model))
