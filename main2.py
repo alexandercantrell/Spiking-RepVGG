@@ -410,9 +410,7 @@ if __name__ == '__main__':
     torch.manual_seed(seed)
     np.random.seed(seed)
     torch.cuda.manual_seed_all(seed)
-    cudnn.deterministic = True
-    cudnn.benchmark = False
-    #cudnn.benchmark = True
+    cudnn.benchmark = True
 
     if not config.EVAL_MODE:
         # linear scale the learning rate according to total batch size, may not be optimal

@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 class ConnectingFunction(nn.Module):
@@ -12,7 +13,8 @@ class ConnectingFunction(nn.Module):
         elif cnf == 'OR':
             self.cnf = lambda x,y: x+y-(x*y)
         elif cnf == 'XOR':
-            self.cnf = lambda x,y: x+y-(2*x*y)
+            #self.cnf = lambda x,y: x+y-(2*x*y)
+            self.cnf = lambda x,y: torch.where(z:=x+y>1.0,0.0,z)
         else:
             raise NotImplementedError(f'{cnf} is a connecting function that has not been implemented.')
     def forward(self,x,y):
