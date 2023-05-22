@@ -19,9 +19,6 @@ def where_iand_cnf(x,y):
     return torch.where(z>1.0,1.0,0.0)
 
 def or_cnf(x,y):
-    return x+y-(x*y)
-
-def where_or_cnf(x,y):
     z = x+y
     return torch.where(z>0.0,1.0,z)
 
@@ -43,8 +40,6 @@ class ConnectingFunction(nn.Module):
             self.cnf = where_iand_cnf
         elif cnf == 'OR':
             self.cnf = or_cnf
-        elif cnf == 'WOR':
-            self.cnf = where_or_cnf
         elif cnf == 'XOR':
             self.cnf = xor_cnf
         else:
