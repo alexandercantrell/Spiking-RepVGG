@@ -26,14 +26,7 @@ def where_or_cnf(x,y):
     return torch.where(z>0.0,1.0,z)
 
 def xor_cnf(x,y):
-    return x+y-(2*x*y)
-
-def modulus_xor_cnf(x,y):
     return (x+y)%2
-
-def where_xor_cnf(x,y):
-    z = x+y
-    return torch.where(z>1.0,0.0,z)
 
 class ConnectingFunction(nn.Module):
     def __init__(self,cnf):
@@ -41,17 +34,19 @@ class ConnectingFunction(nn.Module):
         if cnf == 'ADD':
             self.cnf = lambda x,y: x+y
         elif cnf == 'AND':
-            self.cnf = lambda x,y:  x * y
+            self.cnf = and_cnf
+        elif cnf == 'WAND':
+            self.cnf = where_and_cnf
         elif cnf == 'IAND':
-            self.cnf = lambda x,y: x * (1. - y) 
+            self.cnf = iand_cnf
+        elif cnf == 'WIAND':
+            self.cnf = where_iand_cnf
         elif cnf == 'OR':
-            self.cnf = lambda x,y: x+y-(x*y)
+            self.cnf = or_cnf
+        elif cnf == 'WOR':
+            self.cnf = where_or_cnf
         elif cnf == 'XOR':
             self.cnf = xor_cnf
-        elif cnf == 'MXOR':
-            self.cnf = modulus_xor_cnf
-        elif cnf == 'WXOR':
-            self.cnf = where_xor_cnf
         else:
             raise NotImplementedError(f'{cnf} is a connecting function that has not been implemented.')
     def forward(self,x,y):
