@@ -92,12 +92,12 @@ def main(config,device_id):
         model = get_SpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,cnf=config.MODEL.CNF)
     else:
         raise NotImplementedError
-    if config.MODEL.CUPY:
-        functional.set_backend(model,'cupy',neuron.IFNode)
     if config.DATA.T > 0:
         functional.set_step_mode(model,'m')
     else:
         functional.set_step_mode(model,'s')
+    if config.MODEL.CUPY:
+        functional.set_backend(model,'cupy',neuron.IFNode)
 
     optimizer = build_optimizer(config, model)
 
