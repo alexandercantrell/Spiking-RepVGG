@@ -8,15 +8,13 @@ def and_cnf(x,y):
     return x*y
 
 def where_and_cnf(x,y):
-    z = x+y-1
-    return torch.where(z>=0.0,z,0.0)
+    return nn.functional.relu(x+y-1)
 
 def iand_cnf(x,y):
     return x * (1. - y) 
 
 def where_iand_cnf(x,y):
-    z = x + - y
-    return torch.where(z>=0.0,z,0.0)
+    return nn.functional.relu(x-y)
 
 def or_cnf(x,y):
     z = x+y
