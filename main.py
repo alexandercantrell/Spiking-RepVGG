@@ -245,8 +245,8 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
             loss = loss / config.TRAIN.ACCUMULATION_STEPS
             if scaler is not None:
                 scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
                 if config.TRAIN.CLIP_GRAD:
-                    scaler.unscale_(optimizer)
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(),config.TRAIN.CLIP_GRAD)
                 else:
                     grad_norm = get_grad_norm(model.parameters())
@@ -270,8 +270,8 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
             optimizer.zero_grad()
             if scaler is not None:
                 scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
                 if config.TRAIN.CLIP_GRAD:
-                    scaler.unscale_(optimizer)
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 else:
                     grad_norm = get_grad_norm(model.parameters())
