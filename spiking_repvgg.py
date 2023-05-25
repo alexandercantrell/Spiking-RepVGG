@@ -51,9 +51,12 @@ class SpikingRepVGGBlock(nn.Module):
 
     def forward(self, inputs):
         if hasattr(self, 'rbr_reparam'):
-            out = self.sn(self.se(self.rbr_reparam(inputs)))
+            out = self.se(self.rbr_reparam(inputs))
         else:
-            out = self.sn(self.se(self.rbr_dense(inputs) + self.rbr_1x1(inputs)))
+            out = self.se(self.rbr_dense(inputs) + self.rbr_1x1(inputs))
+            
+        with torch.cuda.amp.autocast(enabled=self.sn.backend!='cupy', dtype=torch.float16):
+            out = self.sn(out)
 
         if self.identity is not None:
             out = self.cnf(self.identity(inputs),out)
