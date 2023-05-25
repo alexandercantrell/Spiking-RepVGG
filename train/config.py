@@ -167,12 +167,16 @@ _C.THROUGHPUT_MODE = False
 # local rank for DistributedDataParallel, given by command line argument
 _C.LOCAL_RANK = 0
 
+_C.CHANNELS_LAST=False
+
 
 def update_config(config, args):
     config.defrost()
     if args.opts:
         config.merge_from_list(args.opts)
     # merge from specific arguments
+    if args.channels_last:
+        config.CHANNELS_LAST=args.channels_last
     if args.save_freq:
         config.SAVE_FREQ = args.save_freq
     if args.disable_amp:

@@ -68,6 +68,7 @@ def parse_option():
     parser.add_argument("--T",type=int,default=4,help='number of times to repeat image')
     parser.add_argument("--save-freq",type=int,default=20,help='save frequency')
     parser.add_argument("--cnf",type=str,default="ADD")
+    parser.add_arguemtn("--channels-last",action="store_true")
 
     args, unparsed = parser.parse_known_args()
 
@@ -103,6 +104,8 @@ def main(config,device_id):
 
     logger.info(str(model))
     model.cuda()
+    if config.CHANNELS_LAST:
+        model.to(memory_format=torch.channels_last)
 
     if torch.cuda.device_count() > 1:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[device_id], broadcast_buffers=False)
@@ -208,9 +211,10 @@ def main(config,device_id):
 
 def preprocess_sample(config, x:torch.Tensor):
     if config.DATA.T > 0:
-        return x.unsqueeze(0).repeat(config.DATA.T,1,1,1,1)
-    else:
-        return x
+        x = x.unsqueeze(0).repeat(config.DATA.T,1,1,1,1)
+    if config.CHANNELS_LAST:
+        x = x.to(memory_format=torch.channels_last)
+    return x
     
 def process_model_output(config, y:torch.Tensor):
     if config.DATA.T > 0:
@@ -320,14 +324,9 @@ def validate(config, data_loader, model):
     for idx, (images, target) in enumerate(data_loader):
         images = images.cuda(non_blocking=True)
         target = target.cuda(non_blocking=True)
-
+        images = preprocess_sample(config,images)
+        
         # compute output
-        output = model(preprocess_sample(config,images))
-
-        #   =============================== deepsup part
-        if type(output) is dict:
-            output = output['main']
-
         output = process_model_output(config,output)
 
         # measure accuracy and record loss
