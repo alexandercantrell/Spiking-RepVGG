@@ -311,7 +311,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 f'ETA {datetime.timedelta(seconds=int(etas))} lr {lr:.6f}\t'
                 f'Time {batch_time.val:.4f} ({batch_time.avg:.4f})\t'
                 f'Loss {loss_meter.val:.4f} ({loss_meter.avg:.4f})\t'
-                f'Grad Norm {norm_meter.val:.4f} ({norm_meter.avg:.4f})\t'
+                #f'Grad Norm {norm_meter.val:.4f} ({norm_meter.avg:.4f})\t'
                 f'Mem {memory_used:.0f}MB')
     epoch_time = time.time() - start
     logger.info(f"EPOCH {epoch} training takes {datetime.timedelta(seconds=int(epoch_time))}")
