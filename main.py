@@ -210,10 +210,10 @@ def main(config,device_id):
     logger.info('Training time {}'.format(total_time_str))
 
 def preprocess_sample(config, x:torch.Tensor):
-    if config.DATA.T > 0:
-        x = x.unsqueeze(0).repeat(config.DATA.T,1,1,1,1)
     if config.CHANNELS_LAST:
         x = x.to(memory_format=torch.channels_last)
+    if config.DATA.T > 0:
+        x = x.unsqueeze(0).repeat(config.DATA.T,1,1,1,1)
     return x
     
 def process_model_output(config, y:torch.Tensor):
