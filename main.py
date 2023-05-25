@@ -68,7 +68,7 @@ def parse_option():
     parser.add_argument("--T",type=int,default=4,help='number of times to repeat image')
     parser.add_argument("--save-freq",type=int,default=20,help='save frequency')
     parser.add_argument("--cnf",type=str,default="ADD")
-    parser.add_arguemtn("--channels-last",action="store_true")
+    parser.add_argument("--channels-last",action="store_true")
 
     args, unparsed = parser.parse_known_args()
 
