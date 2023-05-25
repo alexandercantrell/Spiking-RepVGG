@@ -220,12 +220,11 @@ def process_model_output(config, y:torch.Tensor):
 
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, model_ema=None, scaler=None):
     model.train()
-    optimizer.zero_grad()
+    optimizer.zero_grad(set_to_none=True)
 
     num_steps = len(data_loader)
     batch_time = AverageMeter()
     loss_meter = AverageMeter()
-    #norm_meter = AverageMeter()
 
     start = time.time()
     end = time.time()
@@ -247,50 +246,40 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 scaler.scale(loss).backward()
                 if config.TRAIN.CLIP_GRAD:
                     scaler.unscale_(optimizer)
-                    grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(),config.TRAIN.CLIP_GRAD)
-                #else:
-                #    grad_norm = get_grad_norm(model.parameters())
+                    torch.nn.utils.clip_grad_norm_(model.parameters(),config.TRAIN.CLIP_GRAD)
                 if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad()
+                    optimizer.zero_grad(set_to_none=True)
                     lr_scheduler.step_update(epoch * num_steps + idx)
             else:
                 loss.backward()
                 if config.TRAIN.CLIP_GRAD:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
-                #else:
-                #    grad_norm = get_grad_norm(model.parameters())
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
                     optimizer.step()
-                    optimizer.zero_grad()
+                    optimizer.zero_grad(set_to_none=True)
                     lr_scheduler.step_update(epoch * num_steps + idx)
 
         else:
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             if scaler is not None:
                 scaler.scale(loss).backward()
                 if config.TRAIN.CLIP_GRAD:
                     scaler.unscale_(optimizer)
-                    grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
-                #else:
-                #    grad_norm = get_grad_norm(model.parameters())
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 loss.backward()
                 if config.TRAIN.CLIP_GRAD:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
-                #else:
-                #    grad_norm = get_grad_norm(model.parameters())
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 optimizer.step()
             lr_scheduler.step_update(epoch * num_steps + idx)
 
         torch.cuda.synchronize()
 
         loss_meter.update(loss.item(), targets.size(0))
-        #if not math.isnan(grad_norm):
-        #    norm_meter.update(grad_norm)
         batch_time.update(time.time() - end)
         
         
