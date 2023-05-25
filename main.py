@@ -275,13 +275,15 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 else:
                     grad_norm = get_grad_norm(model.parameters())
+                scaler.step(optimizer)
+                scaler.update()
             else:
                 loss.backward()
                 if config.TRAIN.CLIP_GRAD:
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 else:
                     grad_norm = get_grad_norm(model.parameters())
-            optimizer.step()
+                optimizer.step()
             lr_scheduler.step_update(epoch * num_steps + idx)
 
         torch.cuda.synchronize()
