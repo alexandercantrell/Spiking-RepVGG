@@ -55,7 +55,7 @@ class SpikingRepVGGBlock(nn.Module):
         else:
             out = self.se(self.rbr_dense(inputs) + self.rbr_1x1(inputs))
 
-        with torch.cuda.amp.autocast(device_type='cuda', dtype=torch.float16, enabled=False):
+        with torch.cuda.amp.autocast(dtype=torch.float16, enabled=False):
             out = self.sn(out)
 
         if self.identity is not None:

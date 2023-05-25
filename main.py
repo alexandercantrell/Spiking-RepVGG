@@ -236,7 +236,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
         if mixup_fn is not None:
             samples, targets = mixup_fn(samples, targets)
 
-        with torch.cuda.amp.autocast(device_type='cuda', dtype=torch.float16, enabled=scaler is not None):
+        with torch.cuda.amp.autocast(dtype=torch.float16, enabled=scaler is not None):
             samples = preprocess_sample(config,samples)
             outputs = process_model_output(config,model(samples))
             loss = criterion(outputs, targets)
