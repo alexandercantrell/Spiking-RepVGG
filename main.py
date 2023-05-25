@@ -77,9 +77,6 @@ def parse_option():
     return args, config
 
 
-
-
-
 def main(config,device_id):
     dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn = build_loader(config)
 
@@ -177,7 +174,7 @@ def main(config,device_id):
         if dist.get_rank() == 0:
             save_latest(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger, model_ema=model_ema, scaler=scaler)
             if epoch % config.SAVE_FREQ == 0:
-                save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger, model_ema=model_ema, scaler=sclaer)
+                save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger, model_ema=model_ema, scaler=scaler)
 
         if epoch % config.SAVE_FREQ == 0 or epoch >= (config.TRAIN.EPOCHS - 10):
 
