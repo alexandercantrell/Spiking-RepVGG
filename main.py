@@ -56,6 +56,8 @@ def parse_option():
     parser.add_argument('--tag', help='tag of experiment')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
     parser.add_argument('--throughput', action='store_true', help='Test throughput only')
+    parser.add_argument('--amp-opt-level', type=str, default='O0', choices=['O0', 'O1', 'O2'],
+                        help='depreciated, use --disable-amp if you want to turn off amp')
 
     # distributed training
     parser.add_argument("--local_rank", type=int, default=0, help='local rank for DistributedDataParallel')
