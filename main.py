@@ -225,7 +225,6 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
     batch_time = AverageMeter()
     loss_meter = AverageMeter()
     norm_meter = AverageMeter()
-    acc1_meter = AverageMeter()
     acc5_meter = AverageMeter()
 
     start = time.time()
@@ -272,6 +271,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
             if scaler is not None:
                 scaler.scale(loss).backward()
                 if config.TRAIN.CLIP_GRAD:
+                    scaler.unscale_(optimizer)
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 else:
                     grad_norm = get_grad_norm(model.parameters())
@@ -286,16 +286,10 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
 
         torch.cuda.synchronize()
 
-        acc1, acc5 = accuracy(outputs, targets, topk=(1, 5))
-
-        acc1 = reduce_tensor(acc1)
-        acc5 = reduce_tensor(acc5)
-        loss = reduce_tensor(loss)
-
+        acc5 = accuracy(outputs, targets, topk=(5,))
         loss_meter.update(loss.item(), targets.size(0))
         norm_meter.update(grad_norm)
         batch_time.update(time.time() - end)
-        acc1_meter.update(acc1.item(), targets.size(0))
         acc5_meter.update(acc5.item(), targets.size(0))
         
         
@@ -317,8 +311,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 f'Time {batch_time.val:.4f} ({batch_time.avg:.4f})\t'
                 f'Loss {loss_meter.val:.4f} ({loss_meter.avg:.4f})\t'
                 f'Grad Norm {norm_meter.val:.4f} ({norm_meter.avg:.4f})\t'
-                f'Acc@1 {acc1_meter.val:.3f} ({acc1_meter.avg:.3f})\t'
-                f'Acc@1 {acc5_meter.val:.3f} ({acc5_meter.avg:.3f})\t'
+                f'Acc@1 {acc5_meter.val:.3f}\t'
                 f'Mem {memory_used:.0f}MB')
     epoch_time = time.time() - start
     logger.info(f"EPOCH {epoch} training takes {datetime.timedelta(seconds=int(epoch_time))}")
