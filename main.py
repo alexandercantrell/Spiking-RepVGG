@@ -225,7 +225,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
     num_steps = len(data_loader)
     batch_time = AverageMeter()
     loss_meter = AverageMeter()
-    norm_meter = AverageMeter()
+    #norm_meter = AverageMeter()
 
     start = time.time()
     end = time.time()
@@ -248,8 +248,8 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 if config.TRAIN.CLIP_GRAD:
                     scaler.unscale_(optimizer)
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(),config.TRAIN.CLIP_GRAD)
-                else:
-                    grad_norm = get_grad_norm(model.parameters())
+                #else:
+                #    grad_norm = get_grad_norm(model.parameters())
                 if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
                     scaler.step(optimizer)
                     scaler.update()
@@ -259,8 +259,8 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 loss.backward()
                 if config.TRAIN.CLIP_GRAD:
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
-                else:
-                    grad_norm = get_grad_norm(model.parameters())
+                #else:
+                #    grad_norm = get_grad_norm(model.parameters())
                 if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
                     optimizer.step()
                     optimizer.zero_grad()
@@ -273,24 +273,24 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 if config.TRAIN.CLIP_GRAD:
                     scaler.unscale_(optimizer)
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
-                else:
-                    grad_norm = get_grad_norm(model.parameters())
+                #else:
+                #    grad_norm = get_grad_norm(model.parameters())
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 loss.backward()
                 if config.TRAIN.CLIP_GRAD:
                     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
-                else:
-                    grad_norm = get_grad_norm(model.parameters())
+                #else:
+                #    grad_norm = get_grad_norm(model.parameters())
                 optimizer.step()
             lr_scheduler.step_update(epoch * num_steps + idx)
 
         torch.cuda.synchronize()
 
         loss_meter.update(loss.item(), targets.size(0))
-        if not math.isnan(grad_norm):
-            norm_meter.update(grad_norm)
+        #if not math.isnan(grad_norm):
+        #    norm_meter.update(grad_norm)
         batch_time.update(time.time() - end)
         
         
