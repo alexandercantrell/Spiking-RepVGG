@@ -108,22 +108,13 @@ def log_msg(message, log_file):
         print(message, file=f)
 
 
-
-
-
-try:
-    # noinspection PyUnresolvedReferences
-    from apex import amp
-except ImportError:
-    amp = None
-
 def unwrap_model(model):
     """Remove the DistributedDataParallel wrapper if present."""
     wrapped = isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel)
     return model.module if wrapped else model
 
 
-def load_checkpoint(config, model, optimizer, lr_scheduler, logger, model_ema=None):
+def load_checkpoint(config, model, optimizer, lr_scheduler, logger, model_ema=None,scaler=None):
     logger.info(f"==============> Resuming form {config.MODEL.RESUME}....................")
     if config.MODEL.RESUME.startswith('https'):
         checkpoint = torch.hub.load_state_dict_from_url(
@@ -139,8 +130,8 @@ def load_checkpoint(config, model, optimizer, lr_scheduler, logger, model_ema=No
         config.defrost()
         config.TRAIN.START_EPOCH = checkpoint['epoch'] + 1
         config.freeze()
-        if 'amp' in checkpoint and config.AMP_OPT_LEVEL != "O0" and checkpoint['config'].AMP_OPT_LEVEL != "O0":
-            amp.load_state_dict(checkpoint['amp'])
+        if scaler:
+            scaler.load_state_dict(checkpoint['scaler'])
         logger.info(f"=> loaded successfully '{config.MODEL.RESUME}' (epoch {checkpoint['epoch']})")
         if 'max_accuracy' in checkpoint:
             max_accuracy = checkpoint['max_accuracy']
@@ -162,15 +153,15 @@ def load_weights(model, path):
     unwrap_model(model).load_state_dict(checkpoint, strict=False)
     print('=================== loaded from', path)
 
-def save_latest(config, epoch, model, max_accuracy, optimizer, lr_scheduler, logger, model_ema=None):
+def save_latest(config, epoch, model, max_accuracy, optimizer, lr_scheduler, logger, model_ema=None,scaler=None):
     save_state = {'model': model.state_dict(),
                   'optimizer': optimizer.state_dict(),
                   'lr_scheduler': lr_scheduler.state_dict(),
                   'max_accuracy': max_accuracy,
                   'epoch': epoch,
                   'config': config}
-    if config.AMP_OPT_LEVEL != "O0":
-        save_state['amp'] = amp.state_dict()
+    if scaler:
+        save_state['scaler'] = scaler.state_dict()
     if model_ema is not None:
         save_state['ema'] = unwrap_model(model_ema).state_dict()
 
@@ -179,15 +170,15 @@ def save_latest(config, epoch, model, max_accuracy, optimizer, lr_scheduler, log
     torch.save(save_state, save_path)
     logger.info(f"{save_path} saved !!!")
 
-def save_checkpoint(config, epoch, model, max_accuracy, optimizer, lr_scheduler, logger, is_best=False, model_ema=None):
+def save_checkpoint(config, epoch, model, max_accuracy, optimizer, lr_scheduler, logger, is_best=False, model_ema=None, scaler=None):
     save_state = {'model': model.state_dict(),
                   'optimizer': optimizer.state_dict(),
                   'lr_scheduler': lr_scheduler.state_dict(),
                   'max_accuracy': max_accuracy,
                   'epoch': epoch,
                   'config': config}
-    if config.AMP_OPT_LEVEL != "O0":
-        save_state['amp'] = amp.state_dict()
+    if scaler:
+        save_state['scaler'] = scaler.state_dict()
     if model_ema is not None:
         save_state['ema'] = unwrap_model(model_ema).state_dict()
 

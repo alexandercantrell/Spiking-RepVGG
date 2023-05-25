@@ -148,6 +148,8 @@ _C.TEST.CROP = False
 # Mixed precision opt level, if O0, no amp is used ('O0', 'O1', 'O2')
 # overwritten by command line argument
 _C.AMP_OPT_LEVEL = ''
+
+_C.AMP = True
 # Path to output folder, overwritten by command line argument
 _C.OUTPUT = ''
 # Tag of experiment, overwritten by command line argument
@@ -171,6 +173,10 @@ def update_config(config, args):
     if args.opts:
         config.merge_from_list(args.opts)
     # merge from specific arguments
+    if args.save_freq:
+        config.SAVE_FREQ = args.save_freq
+    if args.disable_amp:
+        config.AMP = False
     if args.T:
         config.DATA.T = args.T
     if args.cnf:

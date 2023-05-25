@@ -79,7 +79,7 @@ def parse_option():
 
 
 
-def main(config,device_id):
+def main(config):
     dataset_train, dataset_val, data_loader_train, data_loader_val, mixup_fn = build_loader(config)
 
     logger.info(f"Creating model:{config.MODEL.ARCH}")
@@ -107,7 +107,7 @@ def main(config,device_id):
     if torch.cuda.device_count() > 1:
         if config.AMP_OPT_LEVEL != "O0":
             model, optimizer = amp.initialize(model, optimizer, opt_level=config.AMP_OPT_LEVEL)
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[device_id],
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[config.LOCAL_RANK],
                                                           broadcast_buffers=False)
         model_without_ddp = model.module
     else:
@@ -400,12 +400,17 @@ if __name__ == '__main__':
 
     if config.AMP_OPT_LEVEL != "O0":
         assert amp is not None, "amp not installed!"
-    torch.distributed.init_process_group("nccl",init_method='env://')
-    rank = torch.distributed.get_rank()
-    device_id = rank%torch.cuda.device_count()
-    torch.cuda.set_device(device_id)
+
+    if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
+        rank = int(os.environ["RANK"])
+        world_size = int(os.environ['WORLD_SIZE'])
+    else:
+        rank = -1
+        world_size = -1
+    torch.cuda.set_device(config.LOCAL_RANK)
+    torch.distributed.init_process_group(backend='nccl', init_method='env://', world_size=world_size, rank=rank)
     torch.distributed.barrier()
-    seed = config.SEED + rank
+    seed = config.SEED + dist.get_rank()
 
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -445,4 +450,4 @@ if __name__ == '__main__':
     # print config
     logger.info(config.dump())
 
-    main(config,device_id)
+    main(config)
