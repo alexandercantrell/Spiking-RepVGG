@@ -224,7 +224,7 @@ def process_model_output(config, y:torch.Tensor):
 
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mixup_fn, lr_scheduler, model_ema=None, scaler=None):
     model.train()
-    optimizer.zero_grad(set_to_none=True)
+    optimizer.zero_grad()
 
     num_steps = len(data_loader)
     batch_time = AverageMeter()
@@ -254,7 +254,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                 if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
                     scaler.step(optimizer)
                     scaler.update()
-                    optimizer.zero_grad(set_to_none=True)
+                    optimizer.zero_grad()
                     lr_scheduler.step_update(epoch * num_steps + idx)
             else:
                 loss.backward()
@@ -262,11 +262,11 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                     torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
                     optimizer.step()
-                    optimizer.zero_grad(set_to_none=True)
+                    optimizer.zero_grad()
                     lr_scheduler.step_update(epoch * num_steps + idx)
 
         else:
-            optimizer.zero_grad(set_to_none=True)
+            optimizer.zero_grad()
             if scaler is not None:
                 scaler.scale(loss).backward()
                 if config.TRAIN.CLIP_GRAD:
