@@ -23,11 +23,11 @@ from train.logger import create_logger
 from utils import load_checkpoint, save_checkpoint, get_grad_norm, auto_resume_helper, reduce_tensor, save_latest, update_model_ema, unwrap_model, load_weights
 from train.optimizer import build_optimizer
 
-from static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
-from hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
-from spiking_repvgg import get_SpikingRepVGG_func_by_name
+from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
+from models.hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
+from models.spiking_repvgg import get_SpikingRepVGG_func_by_name
 from spikingjelly.activation_based import functional, neuron, surrogate
-from fast_surrogate import FastATan
+from models.fast_surrogate import FastATan
 
 
 def parse_option():
