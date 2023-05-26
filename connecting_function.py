@@ -2,20 +2,20 @@ import torch
 import torch.nn as nn
 
 def add_cnf(x,y):
-    return x+y
+    return torch.add(x,y)
 
 def and_cnf(x,y):
-    return nn.functional.relu(x+y-1)
+    return nn.functional.relu(torch.subtract(torch.add(x,y),1))
 
 def iand_cnf(x,y):
-    return nn.functional.relu(x-y)
+    return nn.functional.relu(torch.subtract(x,y))
 
 def or_cnf(x,y):
-    z = x+y
+    z = torch.add(x,y)
     return torch.where(z>1.0,1.0,z)
 
 def xor_cnf(x,y):
-    return (x+y)%2
+    return torch.remainder(torch.add(x,y),2)
 
 class ConnectingFunction(nn.Module):
     def __init__(self,cnf):

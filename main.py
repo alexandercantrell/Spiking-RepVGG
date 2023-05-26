@@ -26,7 +26,8 @@ from train.optimizer import build_optimizer
 from static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
 from hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from spiking_repvgg import get_SpikingRepVGG_func_by_name
-from spikingjelly.activation_based import functional, neuron
+from spikingjelly.activation_based import functional, neuron, surrogate
+from fast_surrogate import ATan as FastATan
 
 
 def parse_option():
@@ -57,8 +58,6 @@ def parse_option():
     parser.add_argument('--tag', help='tag of experiment')
     parser.add_argument('--eval', action='store_true', help='Perform evaluation only')
     parser.add_argument('--throughput', action='store_true', help='Test throughput only')
-    parser.add_argument('--amp-opt-level', type=str, default='O0', choices=['O0', 'O1', 'O2'],
-                        help='depreciated, use --disable-amp if you want to turn off amp')
 
     # distributed training
     parser.add_argument("--local_rank", type=int, default=0, help='local rank for DistributedDataParallel')
@@ -69,6 +68,7 @@ def parse_option():
     parser.add_argument("--save-freq",type=int,default=20,help='save frequency')
     parser.add_argument("--cnf",type=str,default="ADD")
     parser.add_argument("--channels-last",action="store_true")
+    parser.add_argument("--fast-surrogate",action="store_true",help="uses experimental and potentially faster surrogate method")
 
     args, unparsed = parser.parse_known_args()
 
@@ -82,12 +82,20 @@ def main(config,device_id):
 
     logger.info(f"Creating model:{config.MODEL.ARCH}")
     arch = config.MODEL.ARCH
+    
+    surrogate_function = surrogate.ATan(alpha=config.SURROGATE_ALPHA)
+    if config.FAST_SURROGATE:
+        surrogate_function = FastATan(alpha=config.SURROGATE_ALPHA/2.0)
+    
     if 'StaticSpikingRepVGG' in arch:
-        model = get_StaticSpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,cnf=config.MODEL.CNF)
+        model = get_StaticSpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,
+                        cnf=config.MODEL.CNF,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
     elif 'HybridSpikingRepVGG' in arch:
-        model = get_HybridSpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,cnf=config.MODEL.CNF)
+        model = get_HybridSpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,
+                        cnf=config.MODEL.CNF,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
     elif 'SpikingRepVGG' in arch:
-        model = get_SpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,cnf=config.MODEL.CNF)
+        model = get_SpikingRepVGG_func_by_name(arch)(deploy=False,use_checkpoint=args.use_checkpoint,
+                        cnf=config.MODEL.CNF,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
     else:
         raise NotImplementedError
     if config.DATA.T > 0:

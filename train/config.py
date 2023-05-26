@@ -145,10 +145,8 @@ _C.TEST.CROP = False
 # -----------------------------------------------------------------------------
 # Misc
 # -----------------------------------------------------------------------------
-# Mixed precision opt level, if O0, no amp is used ('O0', 'O1', 'O2')
+# Mixed precision opt
 # overwritten by command line argument
-_C.AMP_OPT_LEVEL = ''
-
 _C.AMP = True
 # Path to output folder, overwritten by command line argument
 _C.OUTPUT = ''
@@ -169,12 +167,17 @@ _C.LOCAL_RANK = 0
 
 _C.CHANNELS_LAST=False
 
+_C.FAST_SURROGATE=False
+_C.SURROGATE_ALPHA=2.0
+
 
 def update_config(config, args):
     config.defrost()
     if args.opts:
         config.merge_from_list(args.opts)
     # merge from specific arguments
+    if args.fast_surrogate:
+        config.FAST_SURROGATE=args.fast_surrogate
     if args.channels_last:
         config.CHANNELS_LAST=args.channels_last
     if args.save_freq:
@@ -205,8 +208,6 @@ def update_config(config, args):
         config.TRAIN.ACCUMULATION_STEPS = args.accumulation_steps
     if args.use_checkpoint:
         config.TRAIN.USE_CHECKPOINT = True
-    if args.amp_opt_level:
-        config.AMP_OPT_LEVEL = args.amp_opt_level
     if args.output:
         config.OUTPUT = args.output
     if args.tag:
