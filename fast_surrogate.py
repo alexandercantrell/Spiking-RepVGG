@@ -1,7 +1,23 @@
 import torch
 import math
-from spikingjelly.activation_based.auto_cuda import cfunction
+from spikingjelly.activation_based.auto_cuda.cfunction import constant
 from spikingjelly.activation_based.surrogate import tab4_str, heaviside, SurrogateFunctionBase
+
+def cfunction_atan_backward(y: str, x: str, alpha: float, dtype: str):
+    assert y is not None
+    alpha = constant(None, alpha, dtype)
+    if dtype == 'float':
+        codes = f'const float atan_backward__alpha_x = ((float) 3.14159265358979323846) * {alpha} * {x};'
+        codes += f'{y} = {alpha} / (1.0f + atan_backward__alpha_x * atan_backward__alpha_x);'
+        return codes
+
+    elif dtype == 'half2':
+        codes = f'const half2 atan_backward__alpha_x = __hmul2(__hmul2(__float2half2_rn((float) 3.14159265358979323846), {alpha}), {x});'
+        codes += f'{y} = __h2div({alpha}, __hfma2(atan_backward__alpha_x, atan_backward__alpha_x, __float2half2_rn(1.0f)));'
+        return codes
+
+    else:
+        raise NotImplementedError(dtype)
 
 @torch.jit.script
 def atan_backward(grad_output: torch.Tensor, x: torch.Tensor, alpha: float):
@@ -62,4 +78,4 @@ class ATan(SurrogateFunctionBase):
         return code
 
     def cuda_codes(self, y: str, x: str, dtype: str):
-        return cfunction.atan_backward(y=y, x=x, alpha=self.alpha, dtype=dtype)
+        return cfunction_atan_backward(y=y, x=x, alpha=self.alpha, dtype=dtype)
