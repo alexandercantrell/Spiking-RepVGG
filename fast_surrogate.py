@@ -1,11 +1,7 @@
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import math
 from spikingjelly.activation_based.auto_cuda import cfunction
 from spikingjelly.activation_based.surrogate import tab4_str, heaviside, SurrogateFunctionBase
-
-INV_PI = torch.Tensor(1.0/math.pi)
 
 @torch.jit.script
 def atan_backward(grad_output: torch.Tensor, x: torch.Tensor, alpha: float):
@@ -35,7 +31,7 @@ class ATan(SurrogateFunctionBase):
     @staticmethod
     @torch.jit.script
     def primitive_function(x: torch.Tensor, alpha: float):
-        return torch.add(torch.mul(torch.atan(torch.mul(x,math.pi*alpha)),INV_PI),0.5)
+        return torch.add(torch.mul(torch.atan(torch.mul(x,math.pi*alpha)),torch.div(1,math.pi)),0.5)
 
     @staticmethod
     def backward(grad_output, x, alpha):
