@@ -324,7 +324,7 @@ def validate(config, data_loader, model):
         images = preprocess_sample(config,images)
         
         # compute output
-        output = process_model_output(config,output)
+        output = process_model_output(config,model(images))
 
         # measure accuracy and record loss
         loss = criterion(output, target)
