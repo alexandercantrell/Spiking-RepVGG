@@ -3,7 +3,7 @@ import math
 from spikingjelly.activation_based.auto_cuda.cfunction import constant
 from spikingjelly.activation_based.surrogate import tab4_str, heaviside, SurrogateFunctionBase
 
-def cfunction_atan_backward(y: str, x: str, alpha: float, dtype: str):
+def cfunction_fast_atan_backward(y: str, x: str, alpha: float, dtype: str):
     assert y is not None
     alpha = constant(None, alpha, dtype)
     if dtype == 'float':
@@ -20,11 +20,11 @@ def cfunction_atan_backward(y: str, x: str, alpha: float, dtype: str):
         raise NotImplementedError(dtype)
 
 @torch.jit.script
-def atan_backward(grad_output: torch.Tensor, x: torch.Tensor, alpha: float):
+def fast_atan_backward(grad_output: torch.Tensor, x: torch.Tensor, alpha: float):
     return torch.mul(torch.div(alpha,torch.add(torch.pow(torch.mul(x,math.pi*alpha),2),1)), grad_output), None
 
 
-class atan(torch.autograd.Function):
+class fast_atan(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, alpha):
         if x.requires_grad:
@@ -34,15 +34,15 @@ class atan(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        return atan_backward(grad_output, ctx.saved_tensors[0], ctx.alpha)
+        return fast_atan_backward(grad_output, ctx.saved_tensors[0], ctx.alpha)
 
-class ATan(SurrogateFunctionBase):
+class FastATan(SurrogateFunctionBase):
     def __init__(self, alpha=1.0, spiking=True):
         super().__init__(alpha, spiking)
 
     @staticmethod
     def spiking_function(x, alpha):
-        return atan.apply(x, alpha)
+        return fast_atan.apply(x, alpha)
 
     @staticmethod
     @torch.jit.script
@@ -51,7 +51,7 @@ class ATan(SurrogateFunctionBase):
 
     @staticmethod
     def backward(grad_output, x, alpha):
-        return atan_backward(grad_output, x, alpha)[0]
+        return fast_atan_backward(grad_output, x, alpha)[0]
 
     def cuda_code(self, x: str, y: str, dtype='fp32'):
         sg_name = 'sg_' + self._get_name()
@@ -78,4 +78,4 @@ class ATan(SurrogateFunctionBase):
         return code
 
     def cuda_codes(self, y: str, x: str, dtype: str):
-        return cfunction_atan_backward(y=y, x=x, alpha=self.alpha, dtype=dtype)
+        return cfunction_fast_atan_backward(y=y, x=x, alpha=self.alpha, dtype=dtype)

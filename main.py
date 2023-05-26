@@ -27,7 +27,7 @@ from static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
 from hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from spiking_repvgg import get_SpikingRepVGG_func_by_name
 from spikingjelly.activation_based import functional, neuron, surrogate
-from fast_surrogate import ATan as FastATan
+from fast_surrogate import FastATan
 
 
 def parse_option():
@@ -82,7 +82,7 @@ def main(config,device_id):
 
     logger.info(f"Creating model:{config.MODEL.ARCH}")
     arch = config.MODEL.ARCH
-    
+
     surrogate_function = surrogate.ATan(alpha=config.SURROGATE_ALPHA)
     if config.FAST_SURROGATE:
         surrogate_function = FastATan(alpha=config.SURROGATE_ALPHA/2.0)
