@@ -5,7 +5,7 @@ import math
 from spikingjelly.activation_based.auto_cuda import cfunction
 from spikingjelly.activation_based.surrogate import tab4_str, heaviside, SurrogateFunctionBase
 
-INV_PI = 1.0/math.pi
+INV_PI = torch.Tensor(1.0/math.pi)
 
 @torch.jit.script
 def atan_backward(grad_output: torch.Tensor, x: torch.Tensor, alpha: float):
