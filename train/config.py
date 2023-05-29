@@ -55,7 +55,7 @@ _C.MODEL.RESUME = ''
 _C.MODEL.NUM_CLASSES = 1000
 # Label Smoothing
 _C.MODEL.LABEL_SMOOTHING = 0.1
-_C.MODEL.CNF = 'ADD'
+_C.MODEL.CNF = 'XOR'
 _C.MODEL.CUPY = None
 
 # -----------------------------------------------------------------------------

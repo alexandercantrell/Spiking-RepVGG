@@ -253,7 +253,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
             loss = loss / config.TRAIN.ACCUMULATION_STEPS
             if scaler is not None:
                 scaler.scale(loss).backward()
-                if config.TRAIN.CLIP_GRAD:
+                if config.TRAIN.CLIP_GRAD>0.0:
                     scaler.unscale_(optimizer)
                     torch.nn.utils.clip_grad_norm_(model.parameters(),config.TRAIN.CLIP_GRAD)
                 if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
@@ -263,7 +263,7 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
                     lr_scheduler.step_update(epoch * num_steps + idx)
             else:
                 loss.backward()
-                if config.TRAIN.CLIP_GRAD:
+                if config.TRAIN.CLIP_GRAD>0.0:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 if (idx + 1) % config.TRAIN.ACCUMULATION_STEPS == 0:
                     optimizer.step()
@@ -274,17 +274,18 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
             optimizer.zero_grad()
             if scaler is not None:
                 scaler.scale(loss).backward()
-                if config.TRAIN.CLIP_GRAD:
+                if config.TRAIN.CLIP_GRAD>0.0:
                     scaler.unscale_(optimizer)
                     torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 loss.backward()
-                if config.TRAIN.CLIP_GRAD:
+                if config.TRAIN.CLIP_GRAD>0.0:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), config.TRAIN.CLIP_GRAD)
                 optimizer.step()
             lr_scheduler.step_update(epoch * num_steps + idx)
+        functional.reset_net(model)
 
         torch.cuda.synchronize()
 
@@ -295,8 +296,6 @@ def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, mix
 
         if model_ema is not None:
             update_model_ema(config, dist.get_world_size(), model=model, model_ema=model_ema, cur_epoch=epoch, cur_iter=idx)
-
-        functional.reset_net(model)
 
         end = time.time()
 
