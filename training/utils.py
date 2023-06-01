@@ -40,7 +40,6 @@ def init_distributed_mode(args):
 
     else:
         print("Not using distributed mode")
-        torch.cuda.set_device('cuda')
         args.distributed = False
         return
     args.distributed = True
