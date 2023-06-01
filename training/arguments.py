@@ -25,7 +25,7 @@ def get_args_parser():
     parser.add_argument("--val-crop-size", default=224, type=int, help="the central crop size used for validation (default: 224)")
     parser.add_argument("--val-resize-size", default=232, type=int, help="the resize size used for validation (default: 232)")
     parser.add_argument("--preset",default=None)
-    parser.add_argument("--auto-augment", default='ta_wide', type=str, help="auto augment policy (default: ta_wide)")
+    parser.add_argument("--auto-augment", default=None, type=str, help="auto augment policy (default: None)")
     parser.add_argument("--ra-magnitude", default=9, type=int, help="magnitude of auto augment policy")
     parser.add_argument("--augmix-severity", default=3, type=int, help="severity of augmix policy")
     parser.add_argument("--random-erase", default=0.1, type=float, help="random erasing probability (default: 0.1)")
