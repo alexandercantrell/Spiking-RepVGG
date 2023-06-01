@@ -104,7 +104,7 @@ def build_dataset(args,is_train,logger):
     elif args.dataset == 'imagenet':
         transform = build_transform(args,is_train)
         logger.info(f"Using raw ImageNet {prefix} data")
-        dataset = datasets.ImageFolder(root = args.data_path, split=prefix,transform=transform)
+        dataset = datasets.ImageNet(root = args.data_path, split=prefix,transform=transform)
     elif args.dataset == 'cf10':
         transform = build_transform(args,is_train,mean=CIFAR10_MEAN,std=CIFAR10_STD)
         logger.info(f"Using raw CIFAR-10 {prefix} data")
