@@ -16,8 +16,6 @@ from .builders import build_loader, build_model, build_optimizer, build_schedule
 from .ema import ExponentialMovingAverage
 from .metrics import MetricLogger, SmoothedValue, accuracy
 
-
-
 def main(args):
     device = torch.device(args.device)
 

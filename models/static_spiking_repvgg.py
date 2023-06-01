@@ -8,7 +8,7 @@ import torch
 from copy import deepcopy
 import torch.utils.checkpoint as checkpoint
 from spikingjelly.activation_based import layer
-from utils import conv_bn
+from models.common import conv_bn
 from models.connecting_function import ConnectingFunction
 
 class StaticSpikingRepVGGBlock(nn.Module):

@@ -242,37 +242,3 @@ def update_model_ema(cfg, num_gpus, model, model_ema, cur_epoch, cur_iter):
     params = unwrap_model(model).state_dict()
     for name, param in unwrap_model(model_ema).state_dict().items():
         param.copy_(param * (1.0 - alpha) + params[name] * alpha)
-
-def conv_bn(in_channels, out_channels, kernel_size, stride, padding, groups=1):
-    result = nn.Sequential()
-    result.add_module('conv', layer.Conv2d(in_channels=in_channels, out_channels=out_channels,
-                                                  kernel_size=kernel_size, stride=stride, padding=padding, groups=groups, bias=False))
-    result.add_module('bn', layer.BatchNorm2d(num_features=out_channels))
-    return result
-
-#   Use this for converting a SpikingRepVGG model or a bigger model with RepVGG as its component
-#   Use like this
-#   model = create_SpikingRepVGG_A0(deploy=False)
-#   train model or load weights
-#   repvgg_model_convert(model, save_path='SpikingRepVGG_deploy.pth')
-#   If you want to preserve the original model, call with do_copy=True
-
-#   ====================== for using RepVGG as the backbone of a bigger model, e.g., PSPNet, the pseudo code will be like
-#   train_backbone = create_SpikingRepVGG_B2(deploy=False)
-#   train_backbone.load_state_dict(torch.load('SpikingRepVGG-B2-train.pth'))
-#   train_pspnet = build_pspnet(backbone=train_backbone)
-#   segmentation_train(train_pspnet)
-#   deploy_pspnet = repvgg_model_convert(train_pspnet)
-#   segmentation_test(deploy_pspnet)
-#   =====================   example_pspnet.py shows an example
-
-def repvgg_model_convert(model:nn.Module, save_path=None, do_copy=True):
-    if do_copy:
-        model = copy.deepcopy(model)
-    functional.reset_net(model)
-    for module in model.modules():
-        if hasattr(module, 'switch_to_deploy'):
-            module.switch_to_deploy()
-    if save_path is not None:
-        torch.save(model.state_dict(), save_path)
-    return model

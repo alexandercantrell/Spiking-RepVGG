@@ -117,7 +117,7 @@ def load_checkpoint(args, model, optimizer, lr_scheduler, logger, model_ema=None
             args.resume,map_location='cpu',check_hash=True)
     else:
         path = get_checkpoint_path(args)
-        checkpoint = torch.load(path,map_location='cpu',check_hash=True)
+        checkpoint = torch.load(path,map_location='cpu')
     msg = model.load_state_dict(checkpoint['model'],strict=False)
     logger.info(msg)
     max_accuracy = -1.0
@@ -139,6 +139,20 @@ def load_checkpoint(args, model, optimizer, lr_scheduler, logger, model_ema=None
     del checkpoint
     torch.cuda.empty_cache()
     return max_accuracy, max_ema_accuracy
+
+def load_weights(args,model,logger):
+    logger.info(f"Loading model from {args.resume}")
+    if args.resume.startswith('https'):
+        checkpoint = torch.hub.load_state_dict_from_url(
+            args.resume,map_location='cpu',check_hash=True)
+    else:
+        path = get_checkpoint_path(args)
+        checkpoint = torch.load(path,map_location='cpu')
+    if 'model' in checkpoint:
+        checkpoint = checkpoint['model']
+    if 'state_dict' in checkpoint:
+        checkpoint = checkpoint['state_dict']
+    model.load_state_dict(checkpoint, strict=False)
 
 def _save_checkpoint(path,args,epoch,model,max_accuracy,optimizer,lr_scheduler,logger,model_ema=None,max_ema_accuracy=None,scaler=None):
     checkpoint = {
