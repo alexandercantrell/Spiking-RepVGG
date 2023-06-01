@@ -103,15 +103,15 @@ def build_dataset(args,is_train,logger):
         dataset, _ = torch.load(cache_path)
     elif args.dataset == 'imagenet':
         transform = build_transform(args,is_train)
-        logger.log(f"Using raw ImageNet {prefix} data")
+        logger.info(f"Using raw ImageNet {prefix} data")
         dataset = datasets.ImageFolder(root = args.data_path, split=prefix,transform=transform)
     elif args.dataset == 'cf10':
         transform = build_transform(args,is_train,mean=CIFAR10_MEAN,std=CIFAR10_STD)
-        logger.log(f"Using raw CIFAR-10 {prefix} data")
+        logger.info(f"Using raw CIFAR-10 {prefix} data")
         dataset = datasets.CIFAR10(root=args.data_path,train=is_train,download=True,transform=transform)
     elif args.dataset == 'cf100':
         transform = build_transform(args,is_train,mean=CIFAR100_MEAN,std=CIFAR100_STD)
-        logger.log(f"Using raw CIFAR-100 {prefix} data")
+        logger.info(f"Using raw CIFAR-100 {prefix} data")
         dataset = datasets.CIFAR100(root=args.data_path,train=is_train,download=True,transform=transform)
     else:
         logger.warn(f"Using unimplemented dataset {args.dataset}. The lack of finetuned transformers may impact training and validation accuracy.")
