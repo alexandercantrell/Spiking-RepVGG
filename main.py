@@ -211,7 +211,7 @@ def validate(args,model,criterion,data_loader,device,is_ema=False,print_freq=100
     with torch.inference_mode():
         for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
             samples = samples.to(device,non_blocking=True)
-            targets = samples.to(device,non_blocking=True)
+            targets = targets.to(device,non_blocking=True)
             samples = preprocess_sample(args.T,samples)
             outputs = process_model_output(args.T,model(samples))
             loss = criterion(outputs, targets)
