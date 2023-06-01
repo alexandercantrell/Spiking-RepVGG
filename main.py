@@ -215,7 +215,8 @@ def validate(args,model,criterion,data_loader,device,is_ema=False,print_freq=100
             samples = preprocess_sample(args.T,samples)
             outputs = process_model_output(args.T,model(samples))
             loss = criterion(outputs, targets)
-
+            functional.reset_net(model)
+            
             acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
             # FIXME need to take into account that the datasets
             # could have been padded in distributed setup
