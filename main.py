@@ -283,5 +283,5 @@ if __name__ == '__main__':
         tb_writer = SummaryWriter(args.tb,purge_step=args.start_epoch)
         with open(os.path.join(args.tb,'command_args.txt'),'w') as command_args:
             json.dump(args.__dict__, command_args, indent=4)
-    logger.info(json.dump(args.__dict__))
+    logger.info(json.dumps(args.__dict__))
     main(args)
