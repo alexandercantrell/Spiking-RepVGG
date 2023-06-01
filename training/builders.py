@@ -166,7 +166,7 @@ def build_loader(args,logger):
         batch_size = args.batch_size,
         sampler=train_sampler,
         num_workers = args.workers,
-        pin_memory= not args.disable_pin_memory,
+        pin_memory= not args.disable_pinmemory,
         collate_fn = collate_fn,
     )
 
@@ -175,7 +175,7 @@ def build_loader(args,logger):
         batch_size = args.batch_size,
         sampler=val_sampler,
         num_workers =args.workers,
-        pin_memory= not args.disable_pin_memory
+        pin_memory= not args.disable_pinmemory
     )
 
     return dataset_train, dataset_val, data_loader_train, data_loader_val
