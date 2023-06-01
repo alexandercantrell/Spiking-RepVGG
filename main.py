@@ -166,7 +166,7 @@ def train_one_epoch(args, model, criterion, optimizer, data_loader, device, epoc
             outputs = process_model_output(args.T,model(samples))
             loss = criterion(outputs, targets)
 
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
         if scaler is not None:
             scaler.scale(loss).backward()
             if args.clip_grad_norm is not None:
