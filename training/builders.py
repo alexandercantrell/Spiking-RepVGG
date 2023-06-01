@@ -92,7 +92,7 @@ def build_transform(args,is_train,mean=IMAGENET_MEAN,std=IMAGENET_STD):
         )
     return transform
 
-def build_dataset(args,is_train,logger):
+def build_dataset(args,is_train,logger): #TODO: implement prototype
     prefix = 'train' if is_train else 'val'
     path = os.path.join(args.data_path,prefix)
     logger.info(f'Loading {prefix} data for dataset {args.dataset} from {path}')
@@ -165,7 +165,7 @@ def build_loader(args,logger):
         dataset_train, 
         batch_size = args.batch_size,
         sampler=train_sampler,
-        num_workers = args.num_workers,
+        num_workers = args.workers,
         pin_memory= not args.disable_pin_memory,
         collate_fn = collate_fn,
     )
@@ -174,7 +174,7 @@ def build_loader(args,logger):
         dataset_val,
         batch_size = args.batch_size,
         sampler=val_sampler,
-        num_workers =args.num_workers,
+        num_workers =args.workers,
         pin_memory= not args.disable_pin_memory
     )
 
