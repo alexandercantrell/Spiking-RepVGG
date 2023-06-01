@@ -18,10 +18,10 @@ from models.hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
 from typing import List, Optional, Tuple
 
-from .utils import is_main_process, get_cache_path
-from .presets import ClassificationPresetTrain, ClassificationPresetEval, IMAGENET_MEAN, IMAGENET_STD, CIFAR10_MEAN, CIFAR10_STD, CIFAR100_MEAN, CIFAR100_STD
-from .transforms import RandomMixup, RandomCutmix
-from .sampler import RASampler
+from training.utils import is_main_process, get_cache_path
+from training.presets import ClassificationPresetTrain, ClassificationPresetEval, IMAGENET_MEAN, IMAGENET_STD, CIFAR10_MEAN, CIFAR10_STD, CIFAR100_MEAN, CIFAR100_STD
+from training.transforms import RandomMixup, RandomCutmix
+from training.sampler import RASampler
 
 def build_model(args, logger):
     logger.info(f"Creating model: {args.arch}")

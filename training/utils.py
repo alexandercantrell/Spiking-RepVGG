@@ -7,7 +7,6 @@ import torch.distributed as dist
 import numpy as np
 import copy
 import hashlib
-from spikingjelly.activation_based import functional
 
 def set_seeds(seed):
     torch.manual_seed(seed)
@@ -255,14 +254,3 @@ def store_model_weights(model, checkpoint_path, checkpoint_key="model", strict=T
     os.replace(tmp_path, output_path)
 
     return output_path
-
-def repvgg_model_convert(model:nn.Module, save_path=None, do_copy=True):
-    if do_copy:
-        model = copy.deepcopy(model)
-    functional.reset_net(model)
-    for module in model.modules():
-        if hasattr(module, 'switch_to_deploy'):
-            module.switch_to_deploy()
-    if save_path is not None:
-        torch.save(model.state_dict(), save_path)
-    return model
