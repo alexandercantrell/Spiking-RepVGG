@@ -151,7 +151,7 @@ def process_model_output(T: int, y:torch.Tensor):
     
 def train_one_epoch(args, model, criterion, optimizer, data_loader, device, epoch, model_ema=None, scaler=None):
     model.train()
-    metric_logger = MetricLogger(delimeter=" ")
+    metric_logger = MetricLogger(delimiter=" ")
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value}"))
     metric_logger.add_meter("img/s", SmoothedValue(window_size=10, fmt="{value}"))
 
