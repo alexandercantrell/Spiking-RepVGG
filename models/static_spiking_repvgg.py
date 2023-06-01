@@ -199,7 +199,7 @@ def create_StaticSpikingRepVGG_B2(num_classes=1000, deploy=False, use_checkpoint
                   width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
 def create_StaticSpikingRepVGG_B2g2(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return StaticSpikingRepVGG(num_classes=1000, num_blocks=[4, 6, 16, 1], num_classes=num_classes,
+    return StaticSpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
 def create_StaticSpikingRepVGG_B2g4(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
