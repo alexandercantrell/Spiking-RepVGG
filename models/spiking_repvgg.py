@@ -160,62 +160,62 @@ optional_groupwise_layers = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26]
 g2_map = {l: 2 for l in optional_groupwise_layers}
 g4_map = {l: 4 for l in optional_groupwise_layers}
 
-def create_SpikingRepVGG_A0(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=1000,
+def create_SpikingRepVGG_A0(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=num_classes,
                   width_multiplier=[0.75, 0.75, 0.75, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_A1(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=1000,
+def create_SpikingRepVGG_A1(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=num_classes,
                   width_multiplier=[1, 1, 1, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_A2(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=1000,
+def create_SpikingRepVGG_A2(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[2, 4, 14, 1], num_classes=num_classes,
                   width_multiplier=[1.5, 1.5, 1.5, 2.75], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_B0(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B0(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[1, 1, 1, 2.5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_B1(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B1(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[2, 2, 2, 4], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_B1g2(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B1g2(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[2, 2, 2, 4], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_B1g4(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B1g4(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[2, 2, 2, 4], override_groups_map=g4_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
 
-def create_SpikingRepVGG_B2(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B2(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_B2g2(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B2g2(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_B2g4(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B2g4(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=g4_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
 
-def create_SpikingRepVGG_B3(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B3(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[3, 3, 3, 5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_B3g2(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B3g2(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[3, 3, 3, 5], override_groups_map=g2_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_B3g4(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=1000,
+def create_SpikingRepVGG_B3g4(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[4, 6, 16, 1], num_classes=num_classes,
                   width_multiplier=[3, 3, 3, 5], override_groups_map=g4_map, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
-def create_SpikingRepVGG_D2se(deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
-    return SpikingRepVGG(num_blocks=[8, 14, 24, 1], num_classes=1000,
+def create_SpikingRepVGG_D2se(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
+    return SpikingRepVGG(num_blocks=[8, 14, 24, 1], num_classes=num_classes,
                   width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=None, deploy=deploy, use_se=True, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
 
