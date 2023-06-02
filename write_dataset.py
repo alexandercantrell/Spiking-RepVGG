@@ -14,12 +14,12 @@ def get_args_parser():
     parser.add_argument("--data-path",required=True, type=str)
     parser.add_argument("--write-path",required=True,type=str)
     parser.add_argument("--write-mode",default='smart',type=str,choices=['raw','smart','jpg'])
-    parser.add_argument("--max-resolution",required=True,type=int)
+    parser.add_argument("--max-resolution",default=None,type=int)
     parser.add_argument("--num-workers",default=16,type=int)
     parser.add_argument("--chunk-size",default=100,type=int)
     parser.add_argument("--jpeg-quality",default=90,type=float)
     parser.add_argument("--subset",default=-1,type=int)
-    parser.add_argument("--compress-probability",default=None,type=float)
+    parser.add_argument("--compress-probability",default=0.5,type=float)
 
     return parser
 
