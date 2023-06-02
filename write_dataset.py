@@ -34,7 +34,7 @@ def main(args):
         dataset = ImageFolder(root=os.path.join(args.data_path,args.split))
     if args.subset>0: 
         dataset = Subset(dataset,range(args.subset))
-    os.makedirs(args.write_path)
+    os.makedirs(args.write_path,exist_ok=True)
     path = os.path.join(args.write_path,f'{args.split}.ffcv')
     writer = DatasetWriter(path, {
         'image': RGBImageField(write_mode=args.write_mode,
