@@ -23,10 +23,10 @@ DATASET_STATS = {
 
 def build_train_pipelines(args,mean,std):
     res_tuple = (args.train_crop_size,args.train_crop_size)
-    image_pipeline = [
-        RandomResizedCropRGBImageDecoder(res_tuple),
-        RandomHorizontalFlip()
-        ]
+    image_pipeline = [RandomResizedCropRGBImageDecoder(res_tuple)]
+    if args.mixup_alpha > 0:
+        image_pipeline.append(ImageMixup(alpha=args.mixup_alpha,same_lambda=True))
+    image_pipeline.append(RandomHorizontalFlip())
     if args.auto_augment is not None:
         interpolation = InterpolationMode(args.interpolation)
         if args.auto_augment == 'ra':
@@ -49,16 +49,14 @@ def build_train_pipelines(args,mean,std):
     if args.random_erase > 0:
         image_pipeline.append(transforms.RandomErasing(p=args.random_erase))
 
-    label_pipeline = [
-        IntDecoder(),
+    label_pipeline = [IntDecoder()]
+    if args.mixup_alpha > 0:
+        label_pipeline.append(LabelMixup(alpha=args.mixup_alpha,same_lambda=True))
+    label_pipeline.extend([
         ToTensor(),
         Squeeze(),
         ToDevice(torch.device(args.device),non_blocking=True)
-    ]
-
-    if args.mixup_alpha > 0:
-        image_pipeline.append(ImageMixup(alpha=args.mixup_alpha,same_lambda=True))
-        label_pipeline.append(LabelMixup(alpha=args.mixup_alpha,same_lambda=True))
+    ])
 
     pipelines = {
         'image': image_pipeline,
@@ -97,6 +95,8 @@ def build_loaders(args):
         mean,std = args.data_mean,args.data_std
     else:
         mean,std = DATASET_STATS[args.dataset]
+    #mean = np.array(mean)*255
+    #std = np.array(std)*255
 
     train_path = os.path.join(args.data_path,'train.ffcv')
     train_pipelines = build_train_pipelines(args,mean,std)
