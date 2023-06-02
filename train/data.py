@@ -98,7 +98,7 @@ def build_loaders(args):
     else:
         mean,std = DATASET_STATS[args.dataset]
 
-    train_path = os.path.join(args.data_path,'train','dataset.ffcv')
+    train_path = os.path.join(args.data_path,'train.ffcv')
     train_pipelines = build_train_pipelines(args,mean,std)
     train_order = OrderOption.RANDOM if args.distributed else OrderOption.QUASI_RANDOM
     train_loader = Loader(
@@ -112,7 +112,7 @@ def build_loaders(args):
         distributed=args.distributed
     )
 
-    val_path = os.path.join(args.data_path,'train','dataset.ffcv')
+    val_path = os.path.join(args.data_path,'val.ffcv')
     val_pipelines = build_val_pipelines(args,mean,std)
     val_loader = Loader(val_path,
         batch_size=args.batch_size,
