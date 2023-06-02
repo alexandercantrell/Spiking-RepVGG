@@ -13,7 +13,7 @@ def get_args_parser():
     parser.add_argument("--split",required=True,type=str,choices=["train","val"])
     parser.add_argument("--data-path",required=True, type=str)
     parser.add_argument("--write-path",required=True,type=str)
-    parser.add_argument("--write-mode",default='smart',type=str,choices=['raw','smart','jpg'])
+    parser.add_argument("--write-mode",default='proportion',type=str,choices=['raw','smart','jpg','proportion'])
     parser.add_argument("--max-resolution",default=None,type=int)
     parser.add_argument("--num-workers",default=16,type=int)
     parser.add_argument("--chunk-size",default=100,type=int)
