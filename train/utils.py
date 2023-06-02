@@ -8,6 +8,8 @@ import numpy as np
 import copy
 import hashlib
 
+from spikingjelly.activation_based import functional
+
 def set_seeds(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -83,12 +85,6 @@ def reduce_across_processes(val):
     dist.barrier()
     dist.all_reduce(t)
     return t
-
-def get_cache_path(filepath):
-    h = hashlib.sha1(filepath.encode()).hexdigest()
-    cache_path = os.path.join("~",".torch","vision","datasets","imagefolder",h[:10]+".pt")
-    cache_path = os.path.expanduser(cache_path)
-    return cache_path
 
 def get_checkpoint_path(args):
     file_name = os.path.splitext(os.path.basename(args.resume))[0]
@@ -253,3 +249,14 @@ def store_model_weights(model, checkpoint_path, checkpoint_key="model", strict=T
     os.replace(tmp_path, output_path)
 
     return output_path
+
+def repvgg_model_convert(model:nn.Module, save_path=None, do_copy=True):
+    if do_copy:
+        model = copy.deepcopy(model)
+    functional.reset_net(model)
+    for module in model.modules():
+        if hasattr(module, 'switch_to_deploy'):
+            module.switch_to_deploy()
+    if save_path is not None:
+        torch.save(model.state_dict(), save_path)
+    return model

@@ -9,26 +9,25 @@ import warnings
 
 from spikingjelly.activation_based import functional
 
-from training.arguments import get_args_parser
-from training.utils import set_seeds, set_deterministic, make_output_tree, init_distributed_mode, is_main_process, load_checkpoint, save_latest, save_checkpoint, reduce_across_processes
-from training.logger import create_logger
-from training.builders import build_loader, build_model, build_optimizer, build_scheduler, build_criterion
-from training.ema import ExponentialMovingAverage
-from training.metrics import MetricLogger, SmoothedValue, accuracy
+from train.arguments import get_args_parser
+from train.utils import set_seeds, set_deterministic, make_output_tree, init_distributed_mode, is_main_process, load_checkpoint, save_latest, save_checkpoint, reduce_across_processes
+from train.logger import create_logger
+from train import build_loaders, build_model, build_scheduler, build_optimizer
+from train.ema import ExponentialMovingAverage
+from train.metrics import MetricLogger, SmoothedValue, accuracy
 
 def main(args):
     device = torch.device(args.device)
 
-    dataset_train, dataset_val, data_loader_train, data_loader_val = build_loader(args,logger) #TODO: check logging
+    data_loader_train, data_loader_val = build_loaders(args)
 
-    model = build_model(args, logger)
-    model.to(device)
+    model = build_model(args)
     logger.info(str(model))
     
     if args.distributed and args.sync_bn:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
-    criterion = build_criterion(args)
+    criterion = torch.nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
 
     optimizer = build_optimizer(args, model)
 

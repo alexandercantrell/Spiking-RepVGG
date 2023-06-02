@@ -2,7 +2,7 @@ import datetime
 import time
 from collections import defaultdict, deque
 import torch
-from training.utils import reduce_across_processes
+from train.utils import reduce_across_processes
 
 class SmoothedValue:
     """Track a series of values and provide access to smoothed values over a

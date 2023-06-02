@@ -43,14 +43,3 @@ class ConnectingFunction(nn.Module):
             raise NotImplementedError(f'{cnf} is a connecting function that has not been implemented.')
     def forward(self,x,y):
         return self.cnf(x,y)
-
-def repvgg_model_convert(model:nn.Module, save_path=None, do_copy=True):
-    if do_copy:
-        model = copy.deepcopy(model)
-    functional.reset_net(model)
-    for module in model.modules():
-        if hasattr(module, 'switch_to_deploy'):
-            module.switch_to_deploy()
-    if save_path is not None:
-        torch.save(model.state_dict(), save_path)
-    return model

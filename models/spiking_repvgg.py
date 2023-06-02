@@ -8,7 +8,7 @@ import torch
 from copy import deepcopy
 import torch.utils.checkpoint as checkpoint
 from spikingjelly.activation_based import layer
-from models.common import conv_bn, ConnectingFunction
+from models.connecting_function import conv_bn, ConnectingFunction
 
 class SpikingRepVGGBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size,

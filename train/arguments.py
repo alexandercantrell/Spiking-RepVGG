@@ -3,44 +3,33 @@ import argparse
 def get_args_parser():
     parser = argparse.ArgumentParser(description="Spiking Rep-VGG training script built on the codebase of Rep-VGG and SpikingJelly",add_help=True)
     
-    #epochs & resuming
+    #experiment settings
     parser.add_argument("--epochs", default=120, type=int, metavar="N", help="number of total epochs to run")
     parser.add_argument("--resume", default=None, type=str, help="path of checkpoint. If set to 'latest', it will try to load the latest checkpoint")
     parser.add_argument("--start-epoch", default=0, type=int, metavar="N", help="start epoch")
-    
+    parser.add_argument('--T', default=4, type=int, help="total time-steps")
+
     #dataset
     parser.add_argument("--data-path", default="/your/path/to/dataset", type=str, help="dataset path")
     parser.add_argument("--dataset",default=None,type=str,help="")
-    parser.add_argument("--cache-dataset",dest="cache_dataset",help="Cache the datasets for quicker initialization. It also serializes the transforms",action="store_true",)
 
-    #data loading
-    parser.add_argument("-b", "--batch-size", default=128, type=int, help="images per gpu, the total batch size is $NGPU x batch_size")
-    parser.add_argument("-j", "--workers", default=16, type=int, metavar="N", help="number of data loading workers (default: 16)")
-    parser.add_argument('--T', default=4, type=int, help="total time-steps")
-    parser.add_argument("--disable-pinmemory", action="store_true", help="not use pin memory in dataloader, which can help reduce memory consumption")
-
-    #data resizing
-    parser.add_argument("--interpolation", default="bilinear", type=str, help="the interpolation method (default: bilinear)")
+    #pipelines
     parser.add_argument("--train-crop-size", default=176, type=int, help="the random crop size used for training (default: 176)")
-    parser.add_argument("--val-crop-size", default=224, type=int, help="the central crop size used for validation (default: 224)")
     parser.add_argument("--val-resize-size", default=232, type=int, help="the resize size used for validation (default: 232)")
-    parser.add_argument("--preset",default=None)
+    parser.add_argument("--val-crop-size", default=224, type=int, help="the central crop size used for validation (default: 224)")
     parser.add_argument("--auto-augment", default=None, type=str, help="auto augment policy (default: None)")
+    parser.add_argument("--interpolation", default="bilinear", type=str, help="the interpolation method (default: bilinear)")
     parser.add_argument("--ra-magnitude", default=9, type=int, help="magnitude of auto augment policy")
     parser.add_argument("--augmix-severity", default=3, type=int, help="severity of augmix policy")
-    parser.add_argument("--random-erase", default=0.1, type=float, help="random erasing probability (default: 0.1)")
-
-    #normalize
     parser.add_argument("--data-mean",default=None,type=tuple,help="mean values for custom datasets e.g. (0.485, 0.456, 0.406)")
     parser.add_argument("--data-std",default=None,type=tuple,help="std values for custom dataset e.g. '(0.229, 0.224, 0.225)'")
-
-    #sampling
-    parser.add_argument("--ra-sampler", action="store_true", help="whether to use Repeated Augmentation in training")
-    parser.add_argument("--ra-reps", default=3, type=int, help="number of repetitions for Repeated Augmentation (default: 3)")
-
-    #collate
+    parser.add_argument("--random-erase", default=0.1, type=float, help="random erasing probability (default: 0.1)")
     parser.add_argument("--mixup-alpha", default=0.2, type=float, help="mixup alpha (default: 0.2)")
-    parser.add_argument("--cutmix-alpha", default=0.0, type=float, help="cutmix alpha (default: 1.0)")
+
+    #loader
+    parser.add_argument("-b", "--batch-size", default=128, type=int, help="images per gpu, the total batch size is $NGPU x batch_size")
+    parser.add_argument("-j", "--workers", default=16, type=int, metavar="N", help="number of data loading workers (default: 16)")
+    parser.add_argument("--in-memory",default=1,choices=[0,1])
 
     #model
     parser.add_argument("--arch", default=None, type=str, help="model name")
@@ -96,5 +85,6 @@ def get_args_parser():
     parser.add_argument("--deterministic", action="store_true", help="set 'torch.use_deterministic_algorithms(True)', which can cause errors with some functions that do not have a deterministic implementation")
     parser.add_argument("--seed", default=2020, type=int, help="the random seed")
     parser.add_argument("--sync-bn",dest="sync_bn",help="Use sync batch norm",action="store_true")
-
+    parser.add_argument("--channels-last",dest="channels_last",action="store_true")
+    parser.add_argument("--use-blurpool",dest="use_blurpool",action="store_true")
     return parser
