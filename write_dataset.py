@@ -18,8 +18,9 @@ def get_args_parser():
     parser.add_argument("--num-workers",default=16,type=int)
     parser.add_argument("--chunk-size",default=100,type=int)
     parser.add_argument("--jpeg-quality",default=90,type=float)
+    parser.add_argument("--smart-threshold",default=None,type=int)
     parser.add_argument("--subset",default=-1,type=int)
-    parser.add_argument("--compress-probability",default=0.5,type=float)
+    parser.add_argument("--compress-probability",default=None,type=float)
 
     return parser
 
@@ -40,6 +41,7 @@ def main(args):
         'image': RGBImageField(write_mode=args.write_mode,
                                max_resolution=args.max_resolution,
                                compress_probability=args.compress_probability,
+                               smart_threshold=args.smart_threshold,
                                jpeg_quality=args.jpeg_quality),
         'label': IntField(),
     }, num_workers = args.num_workers)
