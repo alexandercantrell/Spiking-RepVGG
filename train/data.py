@@ -95,8 +95,8 @@ def build_loaders(args):
         mean,std = args.data_mean,args.data_std
     else:
         mean,std = DATASET_STATS[args.dataset]
-    #mean = np.array(mean)*255
-    #std = np.array(std)*255
+    mean = np.array(mean)*255
+    std = np.array(std)*255
 
     train_path = os.path.join(args.data_path,'train.ffcv')
     train_pipelines = build_train_pipelines(args,mean,std)
