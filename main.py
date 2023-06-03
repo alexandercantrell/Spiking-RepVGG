@@ -157,8 +157,6 @@ def train_one_epoch(args, model, criterion, optimizer, data_loader, device, epoc
     header = f"Epoch: [{epoch}/{args.epochs}]"
     for idx, (samples, targets) in enumerate(metric_logger.log_every(data_loader,args.print_freq, header,logger=logger)):
         start_time = time.time()
-        samples = samples.to(device)
-        targets = targets.to(device)
 
         with torch.cuda.amp.autocast(dtype=torch.float16, enabled=scaler is not None):
             samples = preprocess_sample(args.T,samples)
@@ -209,8 +207,6 @@ def validate(args,model,criterion,data_loader,device,is_ema=False,print_freq=100
     start_time = time.time()
     with torch.inference_mode():
         for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
-            samples = samples.to(device,non_blocking=True)
-            targets = targets.to(device,non_blocking=True)
             samples = preprocess_sample(args.T,samples)
             outputs = process_model_output(args.T,model(samples))
             loss = criterion(outputs, targets)
@@ -248,7 +244,6 @@ def validate(args,model,criterion,data_loader,device,is_ema=False,print_freq=100
 def throughput(args,model,data_loader,device):
     model.eval()
     for samples, targets in data_loader:
-        samples = samples.to(device,non_blocking=True)
         samples = preprocess_sample(args.T,samples)
         batch_size = targets.shape[0]
         for _ in range(50):
