@@ -398,7 +398,7 @@ class ImageNetTrainer:
         iterator = tqdm(self.train_loader)
         with profiler.profile(
                     activities=[
-                        #profiler.ProfilerActivity.CPU,
+                        profiler.ProfilerActivity.CPU,
                         profiler.ProfilerActivity.CUDA,
                         ],schedule=profiler.schedule(
                             wait=3,
