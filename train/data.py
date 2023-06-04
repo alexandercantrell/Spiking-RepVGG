@@ -24,7 +24,7 @@ DATASET_STATS = {
 def build_train_pipelines(args,mean,std):
     res_tuple = (args.train_crop_size,args.train_crop_size)
     image_pipeline = [RandomResizedCropRGBImageDecoder(res_tuple)]
-    if args.mixup_alpha > 0:
+    if args.mixup_alpha > 0.0:
         image_pipeline.append(ImageMixup(alpha=args.mixup_alpha,same_lambda=True))
     image_pipeline.append(RandomHorizontalFlip())
     if args.auto_augment is not None:
@@ -46,11 +46,11 @@ def build_train_pipelines(args,mean,std):
             NormalizeImage(mean,std,np.float16),
         ]
     )
-    if args.random_erase > 0:
+    if args.random_erase > 0.0:
         image_pipeline.append(transforms.RandomErasing(p=args.random_erase))
 
     label_pipeline = [IntDecoder()]
-    if args.mixup_alpha > 0:
+    if args.mixup_alpha > 0.0:
         label_pipeline.append(LabelMixup(alpha=args.mixup_alpha,same_lambda=True))
     label_pipeline.extend([
         ToTensor(),
