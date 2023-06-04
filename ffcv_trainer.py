@@ -6,7 +6,7 @@ import torch.distributed as dist
 ch.backends.cudnn.benchmark = True
 ch.autograd.profiler.emit_nvtx(False)
 #ch.autograd.profiler.profile(False)
-import torch.autograd.profiler as profiler
+import torch.profiler as profiler
 
 import torchmetrics
 import numpy as np
