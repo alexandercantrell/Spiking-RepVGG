@@ -153,44 +153,43 @@ def train_one_epoch(args, model, criterion, optimizer, data_loader, epoch, model
     metric_logger.add_meter("img/s", SmoothedValue(window_size=10, fmt="{value:.2f}"))
 
     header = f"Epoch: [{epoch}/{args.epochs}]"
-    with torch.cuda.amp.autocast(dtype=torch.float16, enabled=scaler is not None):
-        for idx, (samples, targets) in enumerate(metric_logger.log_every(data_loader,args.print_freq, header,logger=logger)):
-            start_time = time.time()
+    for idx, (samples, targets) in enumerate(metric_logger.log_every(data_loader,args.print_freq, header,logger=logger)):
+        start_time = time.time()
 
-            
+        with torch.cuda.amp.autocast(dtype=torch.float16, enabled=scaler is not None):
             samples = preprocess_sample(args.T,samples)
             outputs = process_model_output(args.T,model(samples))
             loss = criterion(outputs, targets)
 
-            optimizer.zero_grad(set_to_none=True)
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                if args.clip_grad_norm is not None:
-                    #we should unscale the gradients of optimizer's assigned params if performing gradient clipping
-                    scaler.unscale_(optimizer)
-                    torch.nn.utils.clip_grad_norm_(model.parameters(),args.clip_grad_norm)
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss.backward()
-                if args.clip_grad_norm is not None:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
-                optimizer.step()
-            functional.reset_net(model)
-            if model_ema:                       #FIXME: unsure if needed
-                functional.reset_net(model_ema)
+        optimizer.zero_grad(set_to_none=True)
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            if args.clip_grad_norm is not None:
+                #we should unscale the gradients of optimizer's assigned params if performing gradient clipping
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(),args.clip_grad_norm)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            if args.clip_grad_norm is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
+            optimizer.step()
+        functional.reset_net(model)
+        if model_ema:                       #FIXME: unsure if needed
+            functional.reset_net(model_ema)
 
-            if model_ema and idx % args.model_ema_steps == 0:
-                model_ema.update_parameters(model)
-                if epoch < args.lr_warmup_epochs:
-                    model.ema.n_averaged.fill_(0)
-            
-            acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
-            batch_size = targets.shape[0]
-            metric_logger.update(loss=loss.item(), lr=optimizer.param_groups[0]["lr"])
-            metric_logger.meters["acc1"].update(acc1.item(), n=batch_size)
-            metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
-            metric_logger.meters["img/s"].update(batch_size / (time.time() - start_time))
+        if model_ema and idx % args.model_ema_steps == 0:
+            model_ema.update_parameters(model)
+            if epoch < args.lr_warmup_epochs:
+                model.ema.n_averaged.fill_(0)
+        
+        acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
+        batch_size = targets.shape[0]
+        metric_logger.update(loss=loss.item(), lr=optimizer.param_groups[0]["lr"])
+        metric_logger.meters["acc1"].update(acc1.item(), n=batch_size)
+        metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
+        metric_logger.meters["img/s"].update(batch_size / (time.time() - start_time))
     metric_logger.synchronize_between_processes()
     train_loss, train_acc1, train_acc5 = metric_logger.loss.global_avg, metric_logger.acc1.global_avg, metric_logger.acc5.global_avg
     logger.info(f'Train: train_acc1={train_acc1:.3f}, train_acc5={train_acc5:.3f}, train_loss={train_loss:.6f}, samples/s={metric_logger.meters["img/s"]}')
@@ -204,21 +203,21 @@ def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
     
     num_processed_samples = 0
     start_time = time.time()
-    with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not args.disable_amp):
-        for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
+    for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
+        with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not args.disable_amp):
             samples = preprocess_sample(args.T,samples)
             outputs = process_model_output(args.T,model(samples))
             loss = criterion(outputs, targets)
-            functional.reset_net(model)
-            
-            acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
-            # FIXME need to take into account that the datasets
-            # could have been padded in distributed setup
-            batch_size = targets.shape[0]
-            metric_logger.update(loss=loss.item())
-            metric_logger.meters["acc1"].update(acc1.item(),n=batch_size)
-            metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
-            num_processed_samples += batch_size
+        functional.reset_net(model)
+        
+        acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
+        # FIXME need to take into account that the datasets
+        # could have been padded in distributed setup
+        batch_size = targets.shape[0]
+        metric_logger.update(loss=loss.item())
+        metric_logger.meters["acc1"].update(acc1.item(),n=batch_size)
+        metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
+        num_processed_samples += batch_size
     num_processed_samples = reduce_across_processes(num_processed_samples)
     metric_logger.synchronize_between_processes()
 
