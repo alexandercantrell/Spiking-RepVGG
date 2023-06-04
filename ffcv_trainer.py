@@ -401,11 +401,13 @@ class ImageNetTrainer:
                         profiler.ProfilerActivity.CPU,
                         profiler.ProfilerActivity.CUDA,
                         ],schedule=profiler.schedule(
-                            wait=1,
-                            warmup=1,
-                            active=2,
+                            wait=3,
+                            warmup=3,
+                            active=3,
                             repeat=1),
-                        on_trace_ready=trace_handler) as p:
+                        on_trace_ready=trace_handler,
+                        with_flops=True,
+                        with_modules=True) as p:
             for ix, (images, target) in enumerate(iterator):
                 ### Training start
                 for param_group in self.optimizer.param_groups:
@@ -421,9 +423,9 @@ class ImageNetTrainer:
                 self.scaler.scale(loss_train).backward()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
-                p.step()
                 ### Training end
                 functional.reset_net(model)
+                p.step()
                 ### Logging start
                 if log_level > 0:
                     losses.append(loss_train.detach())
