@@ -204,9 +204,10 @@ def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
     num_processed_samples = 0
     start_time = time.time()
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
-        samples = preprocess_sample(args.T,samples)
-        outputs = process_model_output(args.T,model(samples))
-        loss = criterion(outputs, targets)
+        with torch.cuda.amp.autocast(dtype=torch.float16, enabled=scaler is not None):
+            samples = preprocess_sample(args.T,samples)
+            outputs = process_model_output(args.T,model(samples))
+            loss = criterion(outputs, targets)
         functional.reset_net(model)
         
         acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
