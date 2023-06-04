@@ -21,14 +21,6 @@ DATASET_STATS = {
     'cifar100': (CIFAR100_MEAN, CIFAR100_STD)
 }
 
-class Repeat(torch.nn.Module):
-    def __init__(self, T=1):
-        super(Repeat, self).__init__()
-        self.T = T
-
-    def forward(self, x):
-        return x.unsqueeze(0).repeat(self.T,1,1,1,1)
-
 def build_train_pipelines(args,mean,std):
     res_tuple = (args.train_crop_size,args.train_crop_size)
     image_pipeline = [RandomResizedCropRGBImageDecoder(res_tuple)]
@@ -56,7 +48,6 @@ def build_train_pipelines(args,mean,std):
     )
     if args.random_erase > 0.0:
         image_pipeline.append(transforms.RandomErasing(p=args.random_erase))
-    image_pipeline.append(Repeat(T=args.T))
 
     label_pipeline = [IntDecoder()]
     if args.mixup_alpha > 0.0:
@@ -84,8 +75,6 @@ def build_val_pipelines(args,mean,std):
         ToTorchImage(channels_last=args.channels_last), #TODO: test if needed
         NormalizeImage(mean,std,np.float16),#TODO: disable amp
     ]
-
-    image_pipeline.append(Repeat(T=args.T))
     
     label_pipeline = [
         IntDecoder(),
