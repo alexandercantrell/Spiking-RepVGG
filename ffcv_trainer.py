@@ -408,6 +408,7 @@ class ImageNetTrainer:
                         on_trace_ready=trace_handler,
                         with_flops=True,
                         with_modules=True,
+                        with_stack=True,
                         experimental_config={'USE_KINETO':1}) as p:
             for ix, (images, target) in enumerate(iterator):
                 ### Training start
