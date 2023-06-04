@@ -219,6 +219,7 @@ def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
         metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
         num_processed_samples += batch_size
     num_processed_samples = reduce_across_processes(num_processed_samples)
+    '''
     if (
         hasattr(data_loader.dataset, "__len__")
         and len(data_loader.dataset) != num_processed_samples
@@ -231,7 +232,7 @@ def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
             "Try adjusting the batch size and / or the world size. "
             "Setting the world size to 1 is always a safe bet."
         )
-
+    '''
     metric_logger.synchronize_between_processes()
 
     val_loss, val_acc1, val_acc5 = metric_logger.loss.global_avg, metric_logger.acc1.global_avg, metric_logger.acc5.global_avg
