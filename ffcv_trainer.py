@@ -5,7 +5,8 @@ import torch.nn.functional as F
 import torch.distributed as dist
 ch.backends.cudnn.benchmark = True
 ch.autograd.profiler.emit_nvtx(False)
-ch.autograd.profiler.profile(False)
+#ch.autograd.profiler.profile(False)
+import torch.profiler as profiler
 
 import torchmetrics
 import numpy as np
@@ -38,6 +39,10 @@ from models.hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
 
 from spikingjelly.activation_based import surrogate, neuron, functional
+
+def trace_handler(prof):
+    print(prof.key_averages().table(
+        sort_by="self_cuda_time_total", row_limit=-1))
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', default=None),
@@ -391,39 +396,50 @@ class ImageNetTrainer:
         lrs = np.interp(np.arange(iters), [0, iters], [lr_start, lr_end])
 
         iterator = tqdm(self.train_loader)
-        for ix, (images, target) in enumerate(iterator):
-            ### Training start
-            for param_group in self.optimizer.param_groups:
-                param_group['lr'] = lrs[ix]
+        with profiler.profile(
+                    activities=[
+                        profiler.ProfilerActivity.CPU,
+                        profiler.ProfilerActivity.CUDA,
+                        ],schedule=profiler.schedule(
+                            wait=1,
+                            warmup=1,
+                            active=2,
+                            repeat=1),
+                        on_trace_ready=trace_handler) as p:
+            for ix, (images, target) in enumerate(iterator):
+                ### Training start
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = lrs[ix]
 
-            self.optimizer.zero_grad(set_to_none=True)
-            with autocast():
-                images = self.preprocess(images)
-                output = self.model(images)
-                output = self.postprocess(output)
-                loss_train = self.loss(output, target)
+                self.optimizer.zero_grad(set_to_none=True)
+                with autocast():
+                    images = self.preprocess(images)
+                    output = self.model(images)
+                    output = self.postprocess(output)
+                    loss_train = self.loss(output, target)
 
-            self.scaler.scale(loss_train).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            ### Training end
-            functional.reset_net(model)
-            ### Logging start
-            if log_level > 0:
-                losses.append(loss_train.detach())
+                self.scaler.scale(loss_train).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                p.step()
+                ### Training end
+                functional.reset_net(model)
+                ### Logging start
+                if log_level > 0:
+                    losses.append(loss_train.detach())
 
-                group_lrs = []
-                for _, group in enumerate(self.optimizer.param_groups):
-                    group_lrs.append(f'{group["lr"]:.3f}')
+                    group_lrs = []
+                    for _, group in enumerate(self.optimizer.param_groups):
+                        group_lrs.append(f'{group["lr"]:.3f}')
 
-                names = ['ep', 'iter', 'shape', 'lrs']
-                values = [epoch, ix, tuple(images.shape), group_lrs]
-                if log_level > 1:
-                    names += ['loss']
-                    values += [f'{loss_train.item():.3f}']
+                    names = ['ep', 'iter', 'shape', 'lrs']
+                    values = [epoch, ix, tuple(images.shape), group_lrs]
+                    if log_level > 1:
+                        names += ['loss']
+                        values += [f'{loss_train.item():.3f}']
 
-                msg = ', '.join(f'{n}={v}' for n, v in zip(names, values))
-                iterator.set_description(msg)
+                    msg = ', '.join(f'{n}={v}' for n, v in zip(names, values))
+                    iterator.set_description(msg)
             ### Logging end
 
     @param('data.T')
