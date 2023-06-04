@@ -407,7 +407,8 @@ class ImageNetTrainer:
                             repeat=1),
                         on_trace_ready=trace_handler,
                         with_flops=True,
-                        with_modules=True) as p:
+                        with_modules=True,
+                        experimental_config={'USE_KINETO':1}) as p:
             for ix, (images, target) in enumerate(iterator):
                 ### Training start
                 for param_group in self.optimizer.param_groups:
@@ -415,9 +416,12 @@ class ImageNetTrainer:
 
                 self.optimizer.zero_grad(set_to_none=True)
                 with autocast():
-                    images = self.preprocess(images)
-                    output = self.model(images)
-                    output = self.postprocess(output)
+                    with profiler.record_function("preprocess"):
+                        images = self.preprocess(images)
+                    with profiler.record_function("inference"):
+                        output = self.model(images)
+                    with profiler.record_function("postprocess"):
+                        output = self.postprocess(output)
                     loss_train = self.loss(output, target)
 
                 self.scaler.scale(loss_train).backward()
