@@ -6,7 +6,7 @@ import torch.distributed as dist
 ch.backends.cudnn.benchmark = True
 ch.autograd.profiler.emit_nvtx(False)
 #ch.autograd.profiler.profile(False)
-import torch.profiler as profiler
+import torch.autograd.profiler as profiler
 
 import torchmetrics
 import numpy as np
@@ -41,8 +41,9 @@ from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
 from spikingjelly.activation_based import surrogate, neuron, functional
 
 def trace_handler(prof):
-    print(prof.key_averages(group_by_stack_n=5).table(
+    print(prof.key_averages(group_by_input_shape=True).table(
         sort_by="self_cuda_time_total", row_limit=20))
+    prof.export_chrome_trace("trace.json")
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', default=None),
@@ -406,6 +407,7 @@ class ImageNetTrainer:
                             active=3,
                             repeat=1),
                         on_trace_ready=trace_handler,
+                        record_shapes=True,
                         with_flops=True,
                         with_stack=True) as p:
             for ix, (images, target) in enumerate(iterator):
