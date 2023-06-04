@@ -415,9 +415,12 @@ class ImageNetTrainer:
 
                 self.optimizer.zero_grad(set_to_none=True)
                 with autocast():
-                    images = self.preprocess(images)
-                    output = self.model(images)
-                    output = self.postprocess(output)
+                    with profiler.record_function("preprocess"):
+                        images = self.preprocess(images)
+                    with profiler.record_function("inference"):
+                        output = self.model(images)
+                    with profiler.record_function("postprocess"):
+                        output = self.postprocess(output)
                     loss_train = self.loss(output, target)
 
                 self.scaler.scale(loss_train).backward()
