@@ -427,14 +427,14 @@ class ImageNetTrainer:
             ### Logging end
 
     @param('data.T')
-    def preprocess(self,T,x):
+    def preprocess(self,x,T):
         if T > 0:
             return x.unsqueeze(0).repeat(T,1,1,1,1)
         else:
             return x
         
     @param('data.T')
-    def postprocess(self,T,y):
+    def postprocess(self,y,T):
         if T > 0:
             return y.mean(0)
         else:
