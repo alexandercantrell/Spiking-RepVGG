@@ -448,7 +448,7 @@ class ImageNetTrainer:
         with ch.no_grad():
             with autocast():
                 for images, target in tqdm(self.val_loader):
-                    input = self.preprocess(images)
+                    images = self.preprocess(images)
                     output = self.model(images)
                     output = self.postprocess(output)
                     if lr_tta:
