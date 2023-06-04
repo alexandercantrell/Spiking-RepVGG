@@ -17,8 +17,6 @@ from train.ema import ExponentialMovingAverage
 from train.metrics import MetricLogger, SmoothedValue, accuracy
 
 def main(args):
-    device = torch.device(args.device)
-
     data_loader_train, data_loader_val = build_loaders(args)
 
     model = build_model(args)
@@ -61,7 +59,7 @@ def main(args):
         adjust = args.world_size * args.batch_size * args.model_ema_steps / args.epochs
         alpha = 1.0 - args.model_ema_decay
         alpha = min(1.0,alpha*adjust)
-        model_ema = ExponentialMovingAverage(model_without_ddp,device=device, decay=1.0 - alpha)
+        model_ema = ExponentialMovingAverage(model_without_ddp,device=torch.device(args.device), decay=1.0 - alpha)
         max_ema_accuracy = -1.0
         
     if args.resume is not None:
@@ -73,10 +71,10 @@ def main(args):
     if args.throughput:
         torch.backends.cudnn.benchmark = False #TODO: check diff
         if model_ema:
-            thru = throughput(args, model_ema, data_loader_val, device=device)
+            thru = throughput(args, model_ema, data_loader_val)
             logger.info(f"EMA Only throughput samples/sec: {thru:.2f}")
         else:
-            thru = throughput(args, model, data_loader_val, device=device)
+            thru = throughput(args, model, data_loader_val)
             logger.info(f"Only throughput samples/sec: {thru:.2f}")
         return
 
@@ -84,10 +82,10 @@ def main(args):
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
         if model_ema:
-            acc1, acc5, loss = validate(args, model_ema, criterion, data_loader_val, device=device, is_ema=True)
+            acc1, acc5, loss = validate(args, model_ema, criterion, data_loader_val, is_ema=True)
             logger.info(f"EMA Only eval. top-1 acc, top-5 acc, loss: {acc1:.3f}, {acc5:.3f}, {loss:.5f}")
         else:
-            acc1, acc5, loss = validate(args, model, criterion, data_loader_val, device=device)
+            acc1, acc5, loss = validate(args, model, criterion, data_loader_val)
             logger.info(f"Only eval. top-1 acc, top-5 acc, loss: {acc1:.3f}, {acc5:.3f}, {loss:.5f}")
         return
     
@@ -96,7 +94,7 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
-        train_loss, train_acc1, train_acc5 = train_one_epoch(args,model,criterion,optimizer,data_loader_train,device,epoch, 
+        train_loss, train_acc1, train_acc5 = train_one_epoch(args,model,criterion,optimizer,data_loader_train,epoch, 
                         model_ema=model_ema,scaler=scaler)
         lr_scheduler.step()
         if is_main_process():
@@ -106,7 +104,7 @@ def main(args):
             tb_writer.add_scalar('train_acc5',train_acc5,epoch)
 
         if epoch % args.save_freq == 0 or epoch >= (args.epochs - 10):
-            val_loss, val_acc1, val_acc5 = validate(args,model,criterion,data_loader_val, device=device)
+            val_loss, val_acc1, val_acc5 = validate(args,model,criterion,data_loader_val)
             logger.info(f"Accuracy of the network at epoch {epoch}: {val_acc1:.3f}%")
             max_accuracy = max(max_accuracy, val_acc1)
             logger.info(f'Max accuracy: {max_accuracy:.2f}%')
@@ -119,7 +117,7 @@ def main(args):
                     save_checkpoint(args, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger,
                                     is_best=True, model_ema=model_ema, max_ema_accuracy=max_ema_accuracy, scaler=scaler)
             if model_ema:
-                ema_val_loss, ema_val_acc1, ema_val_acc5 = validate(args,model_ema,criterion,data_loader_val,device=device,is_ema=True)
+                ema_val_loss, ema_val_acc1, ema_val_acc5 = validate(args,model_ema,criterion,data_loader_val,is_ema=True)
                 logger.info(f"EMA Accuracy of the network at epoch {epoch} test images: {ema_val_acc1:.3f}%")
                 max_ema_accuracy = max(max_ema_accuracy, ema_val_acc1)
                 logger.info(f'EMA Max accuracy: {max_ema_accuracy:.2f}%')
@@ -148,7 +146,7 @@ def process_model_output(T: int, y:torch.Tensor):
     else:
         return y
     
-def train_one_epoch(args, model, criterion, optimizer, data_loader, device, epoch, model_ema=None, scaler=None):
+def train_one_epoch(args, model, criterion, optimizer, data_loader, epoch, model_ema=None, scaler=None):
     model.train()
     metric_logger = MetricLogger(delimiter=" ")
     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.2f}"))
@@ -198,7 +196,7 @@ def train_one_epoch(args, model, criterion, optimizer, data_loader, device, epoc
     return train_loss, train_acc1, train_acc5
 
 @torch.no_grad()
-def validate(args,model,criterion,data_loader,device,is_ema=False,print_freq=100):
+def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
     model.eval()
     metric_logger = MetricLogger(delimiter="  ")
     header = f"Validation: {'EMA' if is_ema else ''}"
@@ -241,7 +239,7 @@ def validate(args,model,criterion,data_loader,device,is_ema=False,print_freq=100
     return val_loss, val_acc1, val_acc5
 
 @torch.no_grad()
-def throughput(args,model,data_loader,device):
+def throughput(args,model,data_loader):
     model.eval()
     for samples, targets in data_loader:
         samples = preprocess_sample(args.T,samples)
