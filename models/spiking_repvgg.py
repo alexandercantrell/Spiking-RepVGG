@@ -44,7 +44,7 @@ class SpikingRepVGGBlock(nn.Module):
         if hasattr(self, 'rbr_reparam'):
             out = self.sn(self.rbr_reparam(inputs))
         else:
-            out = self.rbr_dense(inputs) + self.rbr_1x1(inputs)
+            out = self.sn(self.rbr_dense(inputs) + self.rbr_1x1(inputs))
 
         if self.cnf is not None:
             out = self.cnf(inputs,out)
