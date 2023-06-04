@@ -109,7 +109,8 @@ def build_loaders(args):
         os_cache=args.in_memory,
         drop_last=False,
         pipelines=train_pipelines,
-        distributed=args.distributed
+        distributed=args.distributed,
+        batches_ahead=args.batches_ahead,
     )
 
     val_path = os.path.join(args.data_path,'val.ffcv')
@@ -120,6 +121,8 @@ def build_loaders(args):
         order = OrderOption.SEQUENTIAL,
         drop_last=False,
         pipelines=val_pipelines,
-        distributed=args.distributed)
+        distributed=args.distributed,
+        batches_ahead=args.batches_ahead,
+    )
     
     return train_loader, val_loader 

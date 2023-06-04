@@ -4,6 +4,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser(description="Spiking Rep-VGG training script built on the codebase of Rep-VGG and SpikingJelly",add_help=True)
     
     parser.add_argument("--num-classes",default=1000,type=int)#TODO: check if ffcv loader or reader has num_classes attribute
+    parser.add_argument("--batches-ahead",default=3,type=int)#TODO:position correctly
 
     #experiment settings
     parser.add_argument("--epochs", default=120, type=int, metavar="N", help="number of total epochs to run")
