@@ -450,9 +450,9 @@ class ImageNetTrainer:
                 for images, target in tqdm(self.val_loader):
                     images = self.preprocess(images)
                     output = self.model(images)
-                    output = self.postprocess(output)
                     if lr_tta:
-                        output += self.model(ch.flip(images, dims=[3]))
+                        output += self.model(ch.flip(images, dims=[-1]))
+                    output = self.postprocess(output)
                     functional.reset_net(model)
                     for k in ['top_1', 'top_5']:
                         self.val_meters[k](output, target)
