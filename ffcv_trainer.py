@@ -41,8 +41,8 @@ from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
 from spikingjelly.activation_based import surrogate, neuron, functional
 
 def trace_handler(prof):
-    print(prof.key_averages().table(
-        sort_by="self_cuda_time_total", row_limit=-1))
+    print(prof.key_averages(group_by_stack_n=5).table(
+        sort_by="self_cuda_time_total", row_limit=20))
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', default=None),
@@ -415,12 +415,9 @@ class ImageNetTrainer:
 
                 self.optimizer.zero_grad(set_to_none=True)
                 with autocast():
-                    with profiler.record_function("preprocess"):
-                        images = self.preprocess(images)
-                    with profiler.record_function("inference"):
-                        output = self.model(images)
-                    with profiler.record_function("postprocess"):
-                        output = self.postprocess(output)
+                    images = self.preprocess(images)
+                    output = self.model(images)
+                    output = self.postprocess(output)
                     loss_train = self.loss(output, target)
 
                 self.scaler.scale(loss_train).backward()
