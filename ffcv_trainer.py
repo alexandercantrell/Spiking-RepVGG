@@ -465,10 +465,11 @@ class ImageNetTrainer:
         return stats
 
     @param('logging.folder')
-    def initialize_logger(self, folder):
+    @param('model.num_classes')
+    def initialize_logger(self, folder, num_classes):
         self.val_meters = {
-            'top_1': torchmetrics.Accuracy(task='multiclass',compute_on_step=False).to(self.gpu),
-            'top_5': torchmetrics.Accuracy(task='multiclass',compute_on_step=False, top_k=5).to(self.gpu),
+            'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=num_classes,compute_on_step=False).to(self.gpu),
+            'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=num_classes,compute_on_step=False, top_k=5).to(self.gpu),
             'loss': MeanScalarMetric(compute_on_step=False).to(self.gpu)
         }
 
