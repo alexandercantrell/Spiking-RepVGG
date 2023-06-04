@@ -41,7 +41,7 @@ from spikingjelly.activation_based import surrogate, neuron, functional
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', default=None),
-    surrogate=Param(str,'surrogate',default='fast_atan'),
+    surrogate_fn=Param(str,'surrogate',default='fast_atan'),
     surrogate_alpha=Param(float,'surrogate alpha',default=2.0),
     cnf = Param(str,'cnf',default='XOR'),
     num_classes = Param(int,'num classes',default=1000)
@@ -336,17 +336,17 @@ class ImageNetTrainer:
         return stats
 
     @param('model.arch')
-    @param('model.surrogate')
+    @param('model.surrogate_fn')
     @param('model.surrogate_alpha')
     @param('model.cnf')
     @param('model.num_classes')
     @param('data.T')
     @param('training.distributed')
     @param('training.use_blurpool')
-    def create_model_and_scaler(self, arch, surrogate, surrogate_alpha, cnf, num_classes, T, distributed, use_blurpool):
+    def create_model_and_scaler(self, arch, surrogate_fn, surrogate_alpha, cnf, num_classes, T, distributed, use_blurpool):
         scaler = GradScaler()
         surrogate_function = surrogate.ATan(alpha=surrogate_alpha)
-        if surrogate=='fast_atan':
+        if surrogate_fn=='fast_atan':
             surrogate_function = FastATan(alpha=surrogate_alpha/2.0)
         if 'StaticSpikingRepVGG' in arch:
             model = get_StaticSpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=False,
