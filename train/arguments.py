@@ -3,6 +3,8 @@ import argparse
 def get_args_parser():
     parser = argparse.ArgumentParser(description="Spiking Rep-VGG training script built on the codebase of Rep-VGG and SpikingJelly",add_help=True)
     
+    parser.add_argument("--num-classes",default=1000,type=int)#TODO: check if ffcv loader or reader has num_classes attribute
+
     #experiment settings
     parser.add_argument("--epochs", default=120, type=int, metavar="N", help="number of total epochs to run")
     parser.add_argument("--resume", default=None, type=str, help="path of checkpoint. If set to 'latest', it will try to load the latest checkpoint")
