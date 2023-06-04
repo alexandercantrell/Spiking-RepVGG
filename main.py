@@ -149,7 +149,7 @@ def process_model_output(T: int, y:torch.Tensor):
 def train_one_epoch(args, model, criterion, optimizer, data_loader, epoch, model_ema=None, scaler=None):
     model.train()
     metric_logger = MetricLogger(delimiter=" ")
-    metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.2f}"))
+    metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.4f}"))
     metric_logger.add_meter("img/s", SmoothedValue(window_size=10, fmt="{value:.2f}"))
 
     header = f"Epoch: [{epoch}/{args.epochs}]"
@@ -203,21 +203,20 @@ def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
     
     num_processed_samples = 0
     start_time = time.time()
-    with torch.inference_mode():
-        for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
-            samples = preprocess_sample(args.T,samples)
-            outputs = process_model_output(args.T,model(samples))
-            loss = criterion(outputs, targets)
-            functional.reset_net(model)
-            
-            acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
-            # FIXME need to take into account that the datasets
-            # could have been padded in distributed setup
-            batch_size = targets.shape[0]
-            metric_logger.update(loss=loss.item())
-            metric_logger.meters["acc1"].update(acc1.item(),n=batch_size)
-            metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
-            num_processed_samples += batch_size
+    for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
+        samples = preprocess_sample(args.T,samples)
+        outputs = process_model_output(args.T,model(samples))
+        loss = criterion(outputs, targets)
+        functional.reset_net(model)
+        
+        acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
+        # FIXME need to take into account that the datasets
+        # could have been padded in distributed setup
+        batch_size = targets.shape[0]
+        metric_logger.update(loss=loss.item())
+        metric_logger.meters["acc1"].update(acc1.item(),n=batch_size)
+        metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
+        num_processed_samples += batch_size
     num_processed_samples = reduce_across_processes(num_processed_samples)
     if (
         hasattr(data_loader.dataset, "__len__")
