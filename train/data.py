@@ -43,7 +43,7 @@ def build_train_pipelines(args,mean,std):
             ToTensor(),
             ToDevice(torch.device(args.device),non_blocking=True),
             ToTorchImage(channels_last=args.channels_last), #TODO: test if needed
-            NormalizeImage(mean,std,np.float16),
+            NormalizeImage(mean,std,np.float16), #TODO: disable amp
         ]
     )
     if args.random_erase > 0.0:
@@ -73,7 +73,7 @@ def build_val_pipelines(args,mean,std):
         ToTensor(),
         ToDevice(torch.device(args.device),non_blocking=True),
         ToTorchImage(channels_last=args.channels_last), #TODO: test if needed
-        NormalizeImage(mean,std,np.float16),
+        NormalizeImage(mean,std,np.float16),#TODO: disable amp
     ]
     
     label_pipeline = [

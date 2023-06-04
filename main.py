@@ -204,7 +204,7 @@ def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
     num_processed_samples = 0
     start_time = time.time()
     for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
-        with torch.cuda.amp.autocast(dtype=torch.float16, enabled=scaler is not None):
+        with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not args.disable_amp):
             samples = preprocess_sample(args.T,samples)
             outputs = process_model_output(args.T,model(samples))
             loss = criterion(outputs, targets)
@@ -239,7 +239,7 @@ def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
     return val_loss, val_acc1, val_acc5
 
 @torch.no_grad()
-def throughput(args,model,data_loader):
+def throughput(args,model,data_loader):#TODO: add amp
     model.eval()
     for samples, targets in data_loader:
         samples = preprocess_sample(args.T,samples)
