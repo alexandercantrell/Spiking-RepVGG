@@ -96,7 +96,7 @@ def get_checkpoint_path(args):
         path = os.path.join(args.pt,'best_ema_checkpoint.pth')
     elif os.path.exists(args.resume):
         path = args.resume
-    if os.path.exists(os.path.join(args.pt,f'{file_name}.pth')):
+    elif os.path.exists(os.path.join(args.pt,f'{file_name}.pth')):
         path = os.path.join(args.pt,f'{file_name}.pth')
     elif os.path.exists(os.path.join(args.checkpoints,f'{file_name}.pth')):
         path = os.path.join(args.checkpoints,f'{file_name}.pth')
