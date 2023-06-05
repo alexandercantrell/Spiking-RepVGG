@@ -66,7 +66,7 @@ Section('lr', 'lr scheduling').params(
     step_ratio=Param(float, 'learning rate step ratio', default=0.1),
     step_length=Param(int, 'learning rate step length', default=30),
     lr_schedule_type=Param(OneOf(['step', 'cyclic']), default='cyclic'),
-    lr=Param(float, 'learning rate', default=0.1),
+    lr=Param(float, 'learning rate', default=0.5),
     lr_peak_epoch=Param(int, 'Epoch at which LR peaks', default=2),
 )
 
@@ -456,6 +456,7 @@ class ImageNetTrainer:
                 for images, target in tqdm(self.val_loader):
                     images = self.preprocess(images)
                     output = self.model(images)
+                    functional.reset_net(model)
                     if lr_tta:
                         output += self.model(ch.flip(images, dims=[-1]))
                     output = self.postprocess(output)
