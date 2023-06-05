@@ -266,8 +266,9 @@ class ImageNetTrainer:
     @param('validation.batch_size')
     @param('validation.resolution')
     @param('training.distributed')
+    @param('data.in_memory')
     def create_val_loader(self, val_dataset, num_workers, batch_size,
-                          resolution, distributed):
+                          resolution, distributed, in_memory):
         this_device = f'cuda:{self.gpu}'
         val_path = Path(val_dataset)
         assert val_path.is_file()
@@ -293,6 +294,7 @@ class ImageNetTrainer:
                         batch_size=batch_size,
                         num_workers=num_workers,
                         order=OrderOption.SEQUENTIAL,
+                        os_cache=in_memory,
                         drop_last=False,
                         pipelines={
                             'image': image_pipeline,
