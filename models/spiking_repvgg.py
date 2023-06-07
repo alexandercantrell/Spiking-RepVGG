@@ -8,7 +8,14 @@ import torch
 from copy import deepcopy
 import torch.utils.checkpoint as checkpoint
 from spikingjelly.activation_based import layer
-from models.connecting_function import conv_bn, ConnectingFunction
+from models.cnf import ConnectingFunction
+
+def conv_bn(in_channels, out_channels, kernel_size, stride, padding, groups=1):
+    result = nn.Sequential()
+    result.add_module('conv', layer.Conv2d(in_channels=in_channels, out_channels=out_channels,
+                                                  kernel_size=kernel_size, stride=stride, padding=padding, groups=groups, bias=False))
+    result.add_module('bn', layer.BatchNorm2d(num_features=out_channels))
+    return result
 
 class SpikingRepVGGBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size,

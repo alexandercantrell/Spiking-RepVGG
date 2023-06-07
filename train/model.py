@@ -8,7 +8,7 @@ import torch.nn as nn
 from spikingjelly.activation_based import surrogate, neuron, functional
 
 from train.blurpool import BlurPoolConv2d
-from models.fast_surrogate import FastATan
+from models.surrogate import FastATan
 from models.spiking_repvgg import get_SpikingRepVGG_func_by_name
 from models.hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
