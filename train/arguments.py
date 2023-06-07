@@ -42,7 +42,7 @@ def get_args_parser():
     parser.add_argument("--cupy",dest='cupy', help="set the neurons to use cupy backend", action="store_true")
     parser.add_argument("--label-smoothing", default=0.1, type=float, help="label smoothing (default: 0.1)")
     parser.add_argument('--use-checkpoint', action='store_true', help="whether to use gradient checkpointing to save memory")
-    
+    parser.add_argument('--detach-reset',action='store_true')
     #learning rate scheduler
     parser.add_argument("--lr-scheduler", default="cosa", type=str, help="the lr scheduler (default: cosa)")
     parser.add_argument("--lr-warmup-epochs", default=5, type=int, help="the number of epochs to warmup (default: 5)")

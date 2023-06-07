@@ -24,13 +24,13 @@ def build_model(args):
     #create model
     if 'StaticSpikingRepVGG' in args.arch:
         model = get_StaticSpikingRepVGG_func_by_name(args.arch)(num_classes=args.num_classes,deploy=False,use_checkpoint=args.use_checkpoint,
-                        cnf=args.cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+                        cnf=args.cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=args.detach_reset)
     elif 'HybridSpikingRepVGG' in args.arch:
         model = get_HybridSpikingRepVGG_func_by_name(args.arch)(num_classes=args.num_classes,deploy=False,use_checkpoint=args.use_checkpoint,
-                        cnf=args.cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+                        cnf=args.cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=args.detach_reset)
     elif 'SpikingRepVGG' in args.arch:
         model = get_SpikingRepVGG_func_by_name(args.arch)(num_classes=args.num_classes,deploy=False,use_checkpoint=args.use_checkpoint,
-                        cnf=args.cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+                        cnf=args.cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=args.detach_reset)
     else:
         raise ValueError(f"Model architecture {args.arch} does not exist!")
     
@@ -42,12 +42,8 @@ def build_model(args):
 
     #set neuron backend
     if args.cupy:
-        functional.set_backend(model,'cupy',neuron.IFNode)
-        warnings.warn("Setting the neuron backend to 'cupy'. This commonly conflicts with automatic mixed precision (AMP) training if enabled.")
-        if not args.disable_amp:
-            raise ValueError("Neuron backend 'cupy' conflicts with automatic mixed precision (AMP) training. "
-                        "Either remove the --cupy flag from your execution, or disable AMP with --disable-amp.")
-    
+        functional.set_backend(model,'cupy',instance=neuron.IFNode)
+         
     #blurpool #TODO: test
     def apply_blurpool(mod: nn.Module):
         for (name, child) in mod.named_children():

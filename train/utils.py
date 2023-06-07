@@ -104,8 +104,8 @@ def get_checkpoint_path(args):
         raise FileNotFoundError(f"Cannot find given reserved word, path, or file: {args.resume}")
     return path
 
-def load_checkpoint(args, model, optimizer, lr_scheduler, logger, model_ema=None, scaler=None):
-    logger.info(f"Resuming from {args.resume}")
+def load_checkpoint(args, model, optimizer, lr_scheduler,  model_ema=None, scaler=None):
+    print(f"Resuming from {args.resume}")
     if args.resume.startswith('https'):
         checkpoint = torch.hub.load_state_dict_from_url(
             args.resume,map_location='cpu',check_hash=True)
@@ -113,7 +113,7 @@ def load_checkpoint(args, model, optimizer, lr_scheduler, logger, model_ema=None
         path = get_checkpoint_path(args)
         checkpoint = torch.load(path,map_location='cpu')
     msg = model.load_state_dict(checkpoint['model'],strict=False)
-    logger.info(msg)
+    print(msg)
     max_accuracy = -1.0
     if not (args.eval or args.throughput) and 'optimizer' in checkpoint and 'lr_scheduler' in checkpoint and 'epoch' in checkpoint:
         optimizer.load_state_dict(checkpoint['optimizer'])
@@ -121,7 +121,7 @@ def load_checkpoint(args, model, optimizer, lr_scheduler, logger, model_ema=None
         args.start_epoch = checkpoint["epoch"] + 1
         if scaler:
             scaler.load_state_dict(checkpoint['scaler'])
-        logger.info(f"Successfully loaded '{args.resume}' (epoch {checkpoint['epoch']})")
+        print(f"Successfully loaded '{args.resume}' (epoch {checkpoint['epoch']})")
         if 'max_accuracy' in checkpoint:
             max_accuracy = checkpoint['max_accuracy']
     max_ema_accuracy=None
@@ -135,7 +135,7 @@ def load_checkpoint(args, model, optimizer, lr_scheduler, logger, model_ema=None
     return max_accuracy, max_ema_accuracy
 
 def load_weights(args,model,logger):
-    logger.info(f"Loading model from {args.resume}")
+    print(f"Loading model from {args.resume}")
     if args.resume.startswith('https'):
         checkpoint = torch.hub.load_state_dict_from_url(
             args.resume,map_location='cpu',check_hash=True)
@@ -148,7 +148,7 @@ def load_weights(args,model,logger):
         checkpoint = checkpoint['state_dict']
     model.load_state_dict(checkpoint, strict=False)
 
-def _save_checkpoint(path,args,epoch,model,max_accuracy,optimizer,lr_scheduler,logger,model_ema=None,max_ema_accuracy=None,scaler=None):
+def _save_checkpoint(path,args,epoch,model,max_accuracy,optimizer,lr_scheduler,model_ema=None,max_ema_accuracy=None,scaler=None):
     checkpoint = {
         "model": model.state_dict(),
         "optimizer": optimizer.state_dict(),
@@ -164,20 +164,20 @@ def _save_checkpoint(path,args,epoch,model,max_accuracy,optimizer,lr_scheduler,l
         checkpoint["scaler"] = scaler.state_dict()
     if is_main_process():
         torch.save(checkpoint,path)
-        logger.info(f"Saved checkpoint to: {path}")
+        print(f"Saved checkpoint to: {path}")
 
-def save_latest(args,epoch,model, max_accuracy, optimizer, lr_scheduler, logger, model_ema=None, max_ema_accuracy=None, scaler=None):
+def save_latest(args,epoch,model, max_accuracy, optimizer, lr_scheduler,  model_ema=None, max_ema_accuracy=None, scaler=None):
     path = os.path.join(args.pt,"latest_checkpoint.pth")
-    _save_checkpoint(path,args,epoch,model,max_accuracy,optimizer,lr_scheduler,logger,model_ema=model_ema,max_ema_accuracy=max_ema_accuracy,scaler=scaler)
+    _save_checkpoint(path,args,epoch,model,max_accuracy,optimizer,lr_scheduler,model_ema=model_ema,max_ema_accuracy=max_ema_accuracy,scaler=scaler)
 
-def save_checkpoint(args, epoch, model, max_accuracy, optimizer, lr_scheduler, logger, model_ema=None, max_ema_accuracy=None, scaler=None, is_best=False, is_ema=False):
+def save_checkpoint(args, epoch, model, max_accuracy, optimizer, lr_scheduler,  model_ema=None, max_ema_accuracy=None, scaler=None, is_best=False, is_ema=False):
     if is_ema:
         path = os.path.join(args.pt,"best_ema_checkpoint.pth")
     elif is_best:
         path = os.path.join(args.pt,"best_checkpoint.pth")
     else:
         path = os.path.join(args.checkpoints,f"checkpoint_{epoch}.pth")
-    _save_checkpoint(path,args,epoch,model,max_accuracy,optimizer,lr_scheduler,logger,model_ema=model_ema,max_ema_accuracy=max_ema_accuracy,scaler=scaler)
+    _save_checkpoint(path,args,epoch,model,max_accuracy,optimizer,lr_scheduler,model_ema=model_ema,max_ema_accuracy=max_ema_accuracy,scaler=scaler)
 
 
 def store_model_weights(model, checkpoint_path, checkpoint_key="model", strict=True):

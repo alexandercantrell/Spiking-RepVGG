@@ -31,9 +31,6 @@ def main(args):
 
     if args.disable_amp:
         scaler = None
-    elif args.cupy:
-        raise ValueError("Automatic mixed precision (AMP) training conflicts with the 'cupy' neuron backend. "
-                        "Either disable AMP with --disable-amp, or remove the --cupy flag from your execution.")
     else:
         scaler = torch.cuda.amp.GradScaler()
     
@@ -155,13 +152,13 @@ def train_one_epoch(args, model, criterion, optimizer, data_loader, epoch, model
     header = f"Epoch: [{epoch}/{args.epochs}]"
     for idx, (samples, targets) in enumerate(metric_logger.log_every(data_loader,args.print_freq, header,logger=logger)):
         start_time = time.time()
-
+        optimizer.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast(dtype=torch.float16, enabled=scaler is not None):
             samples = preprocess_sample(args.T,samples)
-            outputs = process_model_output(args.T,model(samples))
+            outputs = model(samples)
+            outputs = process_model_output(args.T,outputs)
             loss = criterion(outputs, targets)
 
-        optimizer.zero_grad(set_to_none=True)
         if scaler is not None:
             scaler.scale(loss).backward()
             if args.clip_grad_norm is not None:
@@ -176,8 +173,6 @@ def train_one_epoch(args, model, criterion, optimizer, data_loader, epoch, model
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_grad_norm)
             optimizer.step()
         functional.reset_net(model)
-        if model_ema:                       #FIXME: unsure if needed
-            functional.reset_net(model_ema)
 
         if model_ema and idx % args.model_ema_steps == 0:
             model_ema.update_parameters(model)
@@ -203,21 +198,23 @@ def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
     
     num_processed_samples = 0
     start_time = time.time()
-    for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
-        with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not args.disable_amp):
+    with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not args.disable_amp):
+        for samples, targets in metric_logger.log_every(data_loader, print_freq, header, logger=logger):
             samples = preprocess_sample(args.T,samples)
-            outputs = process_model_output(args.T,model(samples))
+            outputs = model(samples)
+            functional.reset_net(model)
+            if args.lr_tta:
+                outputs += model(torch.flip(samples,dims=[-1]))
+            outputs = process_model_output(outputs)
             loss = criterion(outputs, targets)
-        functional.reset_net(model)
-        
-        acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
-        # FIXME need to take into account that the datasets
-        # could have been padded in distributed setup
-        batch_size = targets.shape[0]
-        metric_logger.update(loss=loss.item())
-        metric_logger.meters["acc1"].update(acc1.item(),n=batch_size)
-        metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
-        num_processed_samples += batch_size
+            acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
+            # FIXME need to take into account that the datasets
+            # could have been padded in distributed setup
+            batch_size = targets.shape[0]
+            metric_logger.update(loss=loss.item())
+            metric_logger.meters["acc1"].update(acc1.item(),n=batch_size)
+            metric_logger.meters["acc5"].update(acc5.item(), n=batch_size)
+            num_processed_samples += batch_size
     num_processed_samples = reduce_across_processes(num_processed_samples)
     metric_logger.synchronize_between_processes()
 

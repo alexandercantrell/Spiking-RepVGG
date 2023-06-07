@@ -348,7 +348,6 @@ class ImageNetTrainer:
     @param('training.distributed')
     @param('training.use_blurpool')
     def create_model_and_scaler(self, arch, surrogate_fn, surrogate_alpha,detach_reset, cnf, cupy, num_classes, T, distributed, use_blurpool):
-        print(bool(detach_reset))
         scaler = GradScaler()
         surrogate_function = surrogate.ATan(alpha=surrogate_alpha)
         if surrogate_fn=='fast_atan':

@@ -23,10 +23,10 @@ DATASET_STATS = {
 
 def build_train_pipelines(args,mean,std):
     res_tuple = (args.train_crop_size,args.train_crop_size)
-    image_pipeline = [RandomResizedCropRGBImageDecoder(res_tuple)]
+    image_pipeline = [RandomResizedCropRGBImageDecoder(res_tuple),
+                      RandomHorizontalFlip()]
     if args.mixup_alpha > 0.0:
         image_pipeline.append(ImageMixup(alpha=args.mixup_alpha,same_lambda=True))
-    image_pipeline.append(RandomHorizontalFlip())
     if args.auto_augment is not None:
         interpolation = InterpolationMode(args.interpolation)
         if args.auto_augment == 'ra':
