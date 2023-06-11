@@ -95,7 +95,7 @@ def main(args):
                         model_ema=model_ema,scaler=scaler)
         lr_scheduler.step()
         if is_main_process():
-            save_latest(args,epoch,model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger, model_ema=model_ema, max_ema_accuracy=max_ema_accuracy, scaler=scaler)
+            save_latest(args,epoch,model_without_ddp, max_accuracy, optimizer, lr_scheduler, model_ema=model_ema, max_ema_accuracy=max_ema_accuracy, scaler=scaler)
             tb_writer.add_scalar('train_loss',train_loss,epoch)
             tb_writer.add_scalar('train_acc1',train_acc1,epoch)
             tb_writer.add_scalar('train_acc5',train_acc5,epoch)
@@ -106,12 +106,12 @@ def main(args):
             max_accuracy = max(max_accuracy, val_acc1)
             logger.info(f'Max accuracy: {max_accuracy:.2f}%')
             if is_main_process():
-                save_checkpoint(args,epoch,model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger, model_ema=model_ema, max_ema_accuracy=max_ema_accuracy, scaler=scaler)
+                save_checkpoint(args,epoch,model_without_ddp, max_accuracy, optimizer, lr_scheduler, model_ema=model_ema, max_ema_accuracy=max_ema_accuracy, scaler=scaler)
                 tb_writer.add_scalar('val_loss',val_loss,epoch)
                 tb_writer.add_scalar('val_acc1',val_acc1,epoch)
                 tb_writer.add_scalar('val_acc5',val_acc5,epoch)
                 if max_accuracy == val_acc1:
-                    save_checkpoint(args, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, logger,
+                    save_checkpoint(args, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler,
                                     is_best=True, model_ema=model_ema, max_ema_accuracy=max_ema_accuracy, scaler=scaler)
             if model_ema:
                 ema_val_loss, ema_val_acc1, ema_val_acc5 = validate(args,model_ema,criterion,data_loader_val,is_ema=True)
