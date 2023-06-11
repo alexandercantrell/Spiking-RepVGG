@@ -204,9 +204,9 @@ def validate(args,model,criterion,data_loader,is_ema=False,print_freq=100):
             outputs = model(samples)
             functional.reset_net(model)
             #if args.lr_tta:
-            #TODO: re-add
+            #TODO: fix
             outputs += model(torch.flip(samples,dims=[-1]))
-            outputs = process_model_output(outputs)
+            outputs = process_model_output(args.T,outputs)
             loss = criterion(outputs, targets)
             acc1, acc5 = accuracy(outputs,targets,topk=(1,5))
             # FIXME need to take into account that the datasets
