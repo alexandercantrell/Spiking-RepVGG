@@ -8,7 +8,7 @@ from fastargs import Param, Section
 from fastargs.validation import And, OneOf
 
 Section('optim', 'optim details').params(
-    optimizer = Param(And(str,OneOf(['sgd','sgd_nesterov','rmsprop','adam','adamw'])),'',default='sgd'),
+    opt = Param(And(str,OneOf(['sgd','sgd_nesterov','rmsprop','adam','adamw'])),'',default='sgd'),
     bn_decay = Param(float,'',default=0.0),
     weight_decay = Param(float,'',default=4e-5),
 )
@@ -17,7 +17,7 @@ Section('optim').enable_if(lambda cfg:cfg['optim.optimizer']in['sgd','sgd_nester
     momentum = Param(float,'',default=0.9)
 )
 
-@param('optim.optimizer')
+@param('optim.opt')
 @param('lr.lr')
 @param('optim.bn_decay')
 @param('optim.weight_decay')

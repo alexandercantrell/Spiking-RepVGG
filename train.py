@@ -76,8 +76,8 @@ def main():
 
     lr_scheduler = build_scheduler(optimizer)
 
-    max_accuracy = -1.0
-        
+    start_epoch=0
+    max_accuracy = -1.0    
     if config['model.resume'] is not None:
         start_epoch, max_accuracy = load_checkpoint(model_without_ddp, optimizer, lr_scheduler)
 
