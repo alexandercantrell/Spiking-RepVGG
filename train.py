@@ -132,7 +132,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None
     model.train()
     metric_logger = MetricLogger(delimiter=" ")
     metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
-    metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
+    metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
     metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
     metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
 
@@ -165,7 +165,7 @@ def validate(model,criterion,data_loader):
     model.eval()
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
-    metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
+    metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
     metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
     metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
     
