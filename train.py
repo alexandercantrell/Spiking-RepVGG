@@ -158,7 +158,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None
         metric_logger.meters["loss"](loss.item())
         metric_logger.meters["img/s"](targets.shape[0] / (time.time() - start_time))
     logger.info(f'Train Epoch [{epoch}/{config["train.epochs"]}]: {str(metric_logger)}')
-    return metric_logger.compute('loss','acc1','acc5')
+    return metric_logger.compute(('loss','acc1','acc5'))
 
 @torch.no_grad()
 def validate(model,criterion,data_loader):
@@ -188,7 +188,7 @@ def validate(model,criterion,data_loader):
             metric_logger.meters["img/s"](batch_size / (time.time() - start_time))
 
     logger.info(f'Test: {str(metric_logger)}')
-    return metric_logger.compute('loss','acc1','acc5')
+    return metric_logger.compute(('loss','acc1','acc5'))
 
 @torch.no_grad()
 def throughput(model,data_loader):
