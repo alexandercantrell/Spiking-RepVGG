@@ -56,7 +56,7 @@ def main():
         logger.info(f"Only throughput samples/sec: {thru:.2f}")
         return
 
-    criterion = torch.nn.CrossEntropyLoss(label_smoothing=config['train.label_smoothing'])
+    criterion = torch.nn.CrossEntropyLoss(label_smoothing=config['criterion.label_smoothing'])
 
     if config['val.eval_only']:
         cudnn.benchmark=False
