@@ -139,12 +139,12 @@ def build_train_pipelines(crop_size,mixup_alpha,random_erase,disable_amp,auto_au
             image_pipeline.append(build_augmix())
         else:
             image_pipeline.append(build_autoaugment())
-    image_pipeline.extend(
+    image_pipeline.extend([
         ToTensor(),
         ToDevice(device,non_blocking=True),
         ToTorchImage(),
         NormalizeImage(*get_dataset_stats(),np.float32 if disable_amp else np.float16)
-    )
+    ])
     if random_erase>0:
         image_pipeline.append(transforms.RandomErasing(p=random_erase))
 
