@@ -13,7 +13,7 @@ Section('optim', 'optim details').params(
     weight_decay = Param(float,'',default=4e-5),
 )
 
-Section('optim').enable_if(lambda cfg:cfg['optim.optimizer']in['sgd','sgd_nesterov','rmsprop']).params(
+Section('optim').enable_if(lambda cfg:cfg['optim.optim']in['sgd','sgd_nesterov','rmsprop']).params(
     momentum = Param(float,'',default=0.9)
 )
 
