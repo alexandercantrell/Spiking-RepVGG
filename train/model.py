@@ -23,7 +23,8 @@ Section('model', 'model details').params(
     use_checkpoints=Param(bool,'use gradient checkpointing',is_flag=True),
     sync_bn=Param(bool,'',is_flag=True),
     disable_amp=Param(bool,'',is_flag=True),
-    resume=Param(str,'',default=None)
+    resume=Param(str,'',default=None),
+    zero_init=Param(bool,'',is_flag=True)
 )
 
 @param('model.arch')
@@ -34,7 +35,8 @@ Section('model', 'model details').params(
 @param('model.use_cupy')
 @param('model.use_checkpoints')
 @param('model.sync_bn')
-def build_model(arch,fast_atan,atan_alpha,cnf,T,use_cupy,use_checkpoints,sync_bn):
+@param('model.zero_init') #TODO:implement
+def build_model(arch,fast_atan,atan_alpha,cnf,T,use_cupy,use_checkpoints,sync_bn,zero_init):
     num_classes = get_num_classes()
     surrogate_function = surrogate.ATan(alpha=atan_alpha)
     if fast_atan:

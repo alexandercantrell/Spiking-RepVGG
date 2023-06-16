@@ -229,8 +229,8 @@ if __name__ == '__main__':
     set_seeds()
     set_deterministic()
     logger = create_logger()
-    if is_main_process():   
-        with open(os.path.join(get_tb_dir(),'command_args.txt'),'w') as command_args:
-            json.dump(config.content, command_args, indent=4)
+    #if is_main_process():   
+    #    with open(os.path.join(get_tb_dir(),'command_args.txt'),'w') as command_args:
+    #        json.dump(config.content, command_args, indent=4)
     logger.info(json.dumps(config.content))
     main()
