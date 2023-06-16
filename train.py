@@ -153,9 +153,9 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None
             optimizer.step()
         functional.reset_net(model)
         
-        metric_logger.meters["acc1"](outputs,targets)
-        metric_logger.meters["acc5"](outputs,targets)
-        metric_logger.meters["loss"](loss.item())
+        metric_logger.meters["acc1"](outputs.detach(),targets.detach())
+        metric_logger.meters["acc5"](outputs.detach(),targets.detach())
+        metric_logger.meters["loss"](loss.detach().item())
         metric_logger.meters["img/s"](targets.shape[0] / (time.time() - start_time))
     logger.info(f'Train Epoch [{epoch}/{config["train.epochs"]}]: {str(metric_logger)}')
     loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
