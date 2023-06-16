@@ -228,7 +228,7 @@ def build_val_loader(path, batch_size, workers, in_memory):
         order=OrderOption.SEQUENTIAL,
         os_cache=in_memory,
         drop_last=False,
-        pipeliens=pipelines,
+        pipelines=pipelines,
         distributed=distributed, 
     )
     return loader
