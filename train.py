@@ -130,11 +130,11 @@ def process_model_output(y:torch.Tensor,T: int):
     
 def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None):
     model.train()
-    metric_logger = MetricLogger(delimiter=" ")
-    metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
-    metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
-    metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
-    metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
+    #metric_logger = MetricLogger(delimiter=" ")
+    #metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
+    #metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
+    #metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
+    #metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
 
     for (samples, targets) in tqdm(data_loader):
         start_time = time.time()
@@ -153,23 +153,24 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None
             optimizer.step()
         functional.reset_net(model)
         
-        metric_logger.meters["acc1"](outputs.detach(),targets.detach())
-        metric_logger.meters["acc5"](outputs.detach(),targets.detach())
-        metric_logger.meters["loss"](loss.detach().item())
-        metric_logger.meters["img/s"](targets.shape[0] / (time.time() - start_time))
-    logger.info(f'Train Epoch [{epoch}/{config["train.epochs"]}]: {str(metric_logger)}')
-    loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
-    metric_logger.reset()
-    return loss, acc1, acc5
+        #metric_logger.meters["acc1"](outputs.detach(),targets.detach())
+        #metric_logger.meters["acc5"](outputs.detach(),targets.detach())
+        #metric_logger.meters["loss"](loss.detach().item())
+        #metric_logger.meters["img/s"](targets.shape[0] / (time.time() - start_time))
+    #logger.info(f'Train Epoch [{epoch}/{config["train.epochs"]}]: {str(metric_logger)}')
+    #loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
+    #metric_logger.reset()
+    #return loss, acc1, acc5
+    return 0,0,0
 
 @torch.no_grad()
 def validate(model,criterion,data_loader):
     model.eval()
-    metric_logger = MetricLogger(delimiter="  ")
-    metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
-    metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
-    metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
-    metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
+    #metric_logger = MetricLogger(delimiter="  ")
+    #metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
+    #metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
+    #metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
+    #metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
     
     with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not config['model.disable_amp']):
         for samples, targets in tqdm(data_loader):
@@ -184,15 +185,16 @@ def validate(model,criterion,data_loader):
             loss = criterion(outputs, targets)
             batch_size = targets.shape[0]
             if config['val.test_flip']:batch_size*=2
-            metric_logger.meters["acc1"](outputs,targets)
-            metric_logger.meters["acc5"](outputs,targets)
-            metric_logger.meters["loss"](loss.item())
-            metric_logger.meters["img/s"](batch_size / (time.time() - start_time))
+            #metric_logger.meters["acc1"](outputs,targets)
+            #metric_logger.meters["acc5"](outputs,targets)
+            #metric_logger.meters["loss"](loss.item())
+            #metric_logger.meters["img/s"](batch_size / (time.time() - start_time))
 
-    logger.info(f'Test: {str(metric_logger)}')
-    loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
-    metric_logger.reset()
-    return loss, acc1, acc5
+    #logger.info(f'Test: {str(metric_logger)}')
+    #loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
+    #metric_logger.reset()
+    #return loss, acc1, acc5
+    return 0,0,0
 
 @torch.no_grad()
 def throughput(model,data_loader):
