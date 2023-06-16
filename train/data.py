@@ -120,10 +120,10 @@ def build_autoaugment(auto_augment):
 
 @param('train.pipeline.crop_size')
 @param('train.pipeline.mixup_alpha')
-@param('train.pipeline.auto_augment')
 @param('train.pipeline.random_erase')
 @param('model.disable_amp')
-def build_train_pipelines(crop_size,mixup_alpha,auto_augment,random_erase,disable_amp):
+@param('train.pipeline.auto_augment')
+def build_train_pipelines(crop_size,mixup_alpha,random_erase,disable_amp,auto_augment=None):
     device = torch.device(get_device_name())
     res_tuple = (crop_size,crop_size)
     image_pipeline=[RandomResizedCropRGBImageDecoder(res_tuple),
