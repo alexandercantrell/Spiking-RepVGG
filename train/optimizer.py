@@ -3,89 +3,46 @@ from typing import List, Optional, Tuple
 import torch
 import torch.optim as optim
 
-def set_weight_decay(
-    model: torch.nn.Module,
-    weight_decay: float,
-    norm_weight_decay: Optional[float] = None,
-    norm_classes: Optional[List[type]] = None,
-    custom_keys_weight_decay: Optional[List[Tuple[str, float]]] = None,
-):
-    if not norm_classes:
-        norm_classes = [
-            torch.nn.modules.batchnorm._BatchNorm,
-            torch.nn.LayerNorm,
-            torch.nn.GroupNorm,
-            torch.nn.modules.instancenorm._InstanceNorm,
-            torch.nn.LocalResponseNorm,
-        ]
-    norm_classes = tuple(norm_classes)
+from fastargs.decorators import param
+from fastargs import Param, Section
+from fastargs.validation import And, OneOf
 
-    params = {
-        "other": [],
-        "norm": [],
-    }
-    params_weight_decay = {
-        "other": weight_decay,
-        "norm": norm_weight_decay,
-    }
-    custom_keys = []
-    if custom_keys_weight_decay is not None:
-        for key, weight_decay in custom_keys_weight_decay:
-            params[key] = []
-            params_weight_decay[key] = weight_decay
-            custom_keys.append(key)
+Section('optim', 'optim details').params(
+    optimizer = Param(And(str,OneOf(['sgd','sgd_nesterov','rmsprop','adam','adamw'])),'',default='sgd'),
+    bn_decay = Param(float,'',default=0.0),
+    weight_decay = Param(float,'',default=4e-5),
+)
 
-    def _add_params(module, prefix=""):
-        for name, p in module.named_parameters(recurse=False):
-            if not p.requires_grad:
-                continue
-            is_custom_key = False
-            for key in custom_keys:
-                target_name = f"{prefix}.{name}" if prefix != "" and "." in key else name
-                if key == target_name:
-                    params[key].append(p)
-                    is_custom_key = True
-                    break
-            if not is_custom_key:
-                if norm_weight_decay is not None and isinstance(module, norm_classes):
-                    params["norm"].append(p)
-                else:
-                    params["other"].append(p)
+Section('optim').enable_if(lambda cfg:cfg['optim.optimizer']in['sgd','sgd_nesterov','rmsprop']).params(
+    momentum = Param(float,'',default=0.9)
+)
 
-        for child_name, child_module in module.named_children():
-            child_prefix = f"{prefix}.{child_name}" if prefix != "" else child_name
-            _add_params(child_module, prefix=child_prefix)
-
-    _add_params(model)
-
-    param_groups = []
-    for key in params:
-        if len(params[key]) > 0:
-            param_groups.append({"params": params[key], "weight_decay": params_weight_decay[key]})
-    return param_groups
-
-def build_optimizer(args, model):
-    custom_keys_weight_decay = []
-    if args.bias_weight_decay is not None:
-        custom_keys_weight_decay.append(("bias",args.bias_weight_decay))
-    if args.transformer_embedding_decay is not None:
-        for key in ["class_token", "position_embedding", "relative_position_bias_table"]:
-            custom_keys_weight_decay.append((key, args.transformer_embedding_decay))
-    parameters = set_weight_decay(
-        model,
-        args.weight_decay,
-        norm_weight_decay=args.norm_weight_decay,
-        custom_keys_weight_decay=custom_keys_weight_decay if len(custom_keys_weight_decay) > 0 else None,
-    )
-    args.opt = args.opt.lower()
-    if args.opt.startswith("sgd"):
-        optimizer = optim.SGD(parameters,lr=args.lr,momentum=args.momentum,weight_decay=args.weight_decay,nesterov="nesterov" in args.opt)
-    elif args.opt == "rmsprop":
-        optimizer = optim.RMSprop(parameters,lr = args.lr,momentum=args.momentum,weight_decay=args.weight_decay,eps=0.0316,alpha=0.9)
-    elif args.opt == "adam":
-        optimizer = optim.Adam(parameters,lr=args.lr,weight_decay=args.weight_decay)
-    elif args.opt == 'adamw':
-        optimizer = optim.AdamW(parameters,lr=args.lr,weight_decay=args.weight_decay)
+@param('optim.optimizer')
+@param('lr.lr')
+@param('optim.bn_decay')
+@param('optim.weight_decay')
+@param('optim.momentum') 
+def build_optimizer(model,opt,lr,bn_decay,weight_decay,momentum=None):
+    # Only do weight decay on non-batchnorm parameters
+    all_params = list(model.named_parameters())
+    bn_params = [v for k, v in all_params if ('bn' in k)]
+    other_params = [v for k, v in all_params if not ('bn' in k)]
+    param_groups = [{
+        'params': bn_params,
+        'weight_decay': bn_decay
+    }, {
+        'params': other_params,
+        'weight_decay': weight_decay
+    }]
+    opt = opt.lower()
+    if opt.startswith("sgd"):
+        optimizer = optim.SGD(param_groups,lr=lr,momentum=momentum,nesterov="nesterov" in opt)
+    elif opt == "rmsprop":
+        optimizer = optim.RMSprop(param_groups,lr = lr,momentum=momentum,eps=0.0316,alpha=0.9)
+    elif opt == "adam":
+        optimizer = optim.Adam(param_groups,lr=lr)
+    elif opt == 'adamw':
+        optimizer = optim.AdamW(param_groups,lr=lr)
     else:
-        raise RuntimeError(f"Invalid optimizer {args.opt}. Only sgd, rmsprop, adam, and adamw are supported.")
+        raise RuntimeError(f"Invalid optimizer {opt}. Only sgd, rmsprop, adam, and adamw are supported.")
     return optimizer

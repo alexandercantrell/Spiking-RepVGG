@@ -19,7 +19,7 @@ def conv_bn(in_channels, out_channels, kernel_size, stride, padding, groups=1):
 
 class HybridSpikingRepVGGBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size,
-                 stride=1, padding=0, dilation=1, groups=1, padding_mode='zeros', deploy=False, use_se=False, cnf = None, spiking_neuron=None):
+                 stride=1, padding=0, dilation=1, groups=1, padding_mode='zeros', deploy=False, cnf = None, spiking_neuron=None):
         super(HybridSpikingRepVGGBlock, self).__init__()
         self.deploy = deploy
         self.groups = groups
@@ -30,11 +30,6 @@ class HybridSpikingRepVGGBlock(nn.Module):
 
         padding_11 = padding - kernel_size // 2
 
-        if use_se:
-            raise NotImplementedError("se block not supported yet")
-        else:
-            self.se = nn.Identity()
-
         if deploy:
             self.rbr_reparam = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
                                       padding=padding, dilation=dilation, groups=groups, bias=True, padding_mode=padding_mode)
@@ -44,11 +39,9 @@ class HybridSpikingRepVGGBlock(nn.Module):
             self.rbr_1x1 = conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, padding=padding_11, groups=groups)
         
         if (out_channels == in_channels and stride == 1):
-            self.identity=nn.Identity()
             self.sn = spiking_neuron
             self.cnf = ConnectingFunction(cnf)
         else:
-            self.identity = None
             self.sn = deepcopy(spiking_neuron)
             self.cnf = None
         
@@ -56,12 +49,12 @@ class HybridSpikingRepVGGBlock(nn.Module):
 
     def forward(self, inputs):
         if hasattr(self, 'rbr_reparam'):
-            out = self.se(self.rbr_reparam(inputs))
+            out = self.rbr_reparam(inputs)
         else:
-            out = self.se(self.rbr_dense(inputs) + self.rbr_1x1(inputs))
+            out = self.rbr_dense(inputs) + self.rbr_1x1(inputs)
 
-        if self.identity is not None:
-            out = self.cnf(self.identity(inputs),self.sn.single_step_forward(out))
+        if self.cnf is not None:
+            out = self.cnf(inputs,self.sn.single_step_forward(out))
         else:
             out = self.sn(out)
 
@@ -117,18 +110,17 @@ class HybridSpikingRepVGGBlock(nn.Module):
 
 class HybridSpikingRepVGG(nn.Module):
 
-    def __init__(self, num_blocks, num_classes=1000, width_multiplier=None, override_groups_map=None, deploy=False, use_se=False, use_checkpoint=False, cnf=None, spiking_neuron=None, **kwargs):
+    def __init__(self, num_blocks, num_classes=1000, width_multiplier=None, override_groups_map=None, deploy=False, use_checkpoint=False, cnf=None, spiking_neuron=None, **kwargs):
         super(HybridSpikingRepVGG, self).__init__()
         assert len(width_multiplier) == 4
         self.deploy = deploy
         self.override_groups_map = override_groups_map or dict()
         assert 0 not in self.override_groups_map
-        self.use_se = use_se
         self.use_checkpoint = use_checkpoint
 
         self.in_planes = min(64, int(64 * width_multiplier[0]))
         self.sn0 = spiking_neuron(**deepcopy(kwargs))
-        self.stage0 = HybridSpikingRepVGGBlock(in_channels=3, out_channels=self.in_planes, kernel_size=3, stride=2, padding=1, deploy=self.deploy, use_se=self.use_se,spiking_neuron=self.sn0)
+        self.stage0 = HybridSpikingRepVGGBlock(in_channels=3, out_channels=self.in_planes, kernel_size=3, stride=2, padding=1, deploy=self.deploy, spiking_neuron=self.sn0)
         self.cur_layer_idx = 1
         self.stage1, self.sn1 = self._make_stage(int(64 * width_multiplier[0]), num_blocks[0], stride=2, cnf=cnf, spiking_neuron=spiking_neuron, **kwargs)
         self.stage2, self.sn2 = self._make_stage(int(128 * width_multiplier[1]), num_blocks[1], stride=2, cnf=cnf, spiking_neuron=spiking_neuron, **kwargs)
@@ -144,7 +136,7 @@ class HybridSpikingRepVGG(nn.Module):
         for stride in strides:
             cur_groups = self.override_groups_map.get(self.cur_layer_idx, 1)
             blocks.append(HybridSpikingRepVGGBlock(in_channels=self.in_planes, out_channels=planes, kernel_size=3,
-                                      stride=stride, padding=1, groups=cur_groups, deploy=self.deploy, use_se=self.use_se, cnf=cnf, spiking_neuron=sn))
+                                      stride=stride, padding=1, groups=cur_groups, deploy=self.deploy, cnf=cnf, spiking_neuron=sn))
             self.in_planes = planes
             self.cur_layer_idx += 1
         return (nn.ModuleList(blocks), sn)
@@ -230,7 +222,7 @@ def create_HybridSpikingRepVGG_B3g4(num_classes=1000, deploy=False, use_checkpoi
 
 def create_HybridSpikingRepVGG_D2se(num_classes=1000, deploy=False, use_checkpoint=False,cnf=None,spiking_neuron=None,**kwargs):
     return HybridSpikingRepVGG(num_blocks=[8, 14, 24, 1], num_classes=num_classes,
-                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=None, deploy=deploy, use_se=True, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
+                  width_multiplier=[2.5, 2.5, 2.5, 5], override_groups_map=None, deploy=deploy, use_checkpoint=use_checkpoint,cnf=cnf,spiking_neuron=spiking_neuron,**kwargs)
 
 
 func_dict = {

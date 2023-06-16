@@ -1,62 +1,70 @@
 import warnings
 
-import numpy as np
-
 import torch
-import torch.nn as nn
+
+from fastargs.decorators import param
+from fastargs import Param, Section
 
 from spikingjelly.activation_based import surrogate, neuron, functional
 
-from train.blurpool import BlurPoolConv2d
 from models.surrogate import FastATan
 from models.spiking_repvgg import get_SpikingRepVGG_func_by_name
 from models.hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
+from train.data import get_num_classes
+from train.utils import get_device_name, is_dist_avail_and_initialized
 
-def build_model(args):
-    
-    #set surrogate method
-    surrogate_function = surrogate.ATan(alpha=args.surrogate_alpha)
-    if args.fast_surrogate:
+Section('model', 'model details').params(
+    arch=Param(str, 'model arch', required=True),
+    fast_atan=Param(bool,'whether or not to use the FastATan surrogate',is_flag=True),
+    atan_alpha=Param(float,'atan alpha',default=2.0),
+    cnf = Param(str,'cnf',default='FAST_XOR'),
+    use_cupy = Param(bool,'use cupy',is_flag=True),
+    use_checkpoints=Param(bool,'use gradient checkpointing',is_flag=True),
+    sync_bn=Param(bool,'',is_flag=True),
+    disable_amp=Param(bool,'',is_flag=True),
+    resume=Param(str,'',default=None)
+)
+
+@param('model.arch')
+@param('model.fast_atan')
+@param('model.atan_alpha')
+@param('model.cnf')
+@param('data.T')
+@param('model.use_cupy')
+@param('model.use_checkpoints')
+@param('model.sync_bn')
+def build_model(arch,fast_atan,atan_alpha,cnf,T,use_cupy,use_checkpoints,sync_bn):
+    num_classes = get_num_classes()
+    surrogate_function = surrogate.ATan(alpha=atan_alpha)
+    if fast_atan:
         warnings.warn(f"Using surrogate function FastATan which is experimental.")
-        surrogate_function = FastATan(alpha=args.surrogate_alpha/2.0)
-    
-    #create model
-    if 'StaticSpikingRepVGG' in args.arch:
-        model = get_StaticSpikingRepVGG_func_by_name(args.arch)(num_classes=args.num_classes,deploy=False,use_checkpoint=args.use_checkpoint,
-                        cnf=args.cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=args.detach_reset)
-    elif 'HybridSpikingRepVGG' in args.arch:
-        model = get_HybridSpikingRepVGG_func_by_name(args.arch)(num_classes=args.num_classes,deploy=False,use_checkpoint=args.use_checkpoint,
-                        cnf=args.cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=args.detach_reset)
-    elif 'SpikingRepVGG' in args.arch:
-        model = get_SpikingRepVGG_func_by_name(args.arch)(num_classes=args.num_classes,deploy=False,use_checkpoint=args.use_checkpoint,
-                        cnf=args.cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=args.detach_reset)
+        surrogate_function = FastATan(alpha=atan_alpha/2.0)
+
+    if 'StaticSpikingRepVGG' in arch:
+        model = get_StaticSpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=use_checkpoints,
+                        cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+    elif 'HybridSpikingRepVGG' in arch:
+        model = get_HybridSpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=use_checkpoints,
+                        cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+    elif 'SpikingRepVGG' in arch:
+        model = get_SpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=use_checkpoints,
+                        cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
     else:
-        raise ValueError(f"Model architecture {args.arch} does not exist!")
-    
-    #set model step mode
-    if args.T > 0:
+        raise ValueError(f"Model architecture {arch} does not exist!")
+    if T>0:
         functional.set_step_mode(model,'m')
     else:
         functional.set_step_mode(model,'s')
 
-    #set neuron backend
-    if args.cupy:
+    if use_cupy:
         functional.set_backend(model,'cupy',instance=neuron.IFNode)
-         
-    #blurpool #TODO: test
-    def apply_blurpool(mod: nn.Module):
-        for (name, child) in mod.named_children():
-            if isinstance(child, nn.Conv2d) and (np.max(child.stride) > 1 and child.in_channels >= 16): 
-                setattr(mod, name, BlurPoolConv2d(child))
-            else: apply_blurpool(child)
-    if args.use_blurpool: apply_blurpool(model)
 
-    #set channels last #TODO: test
-    if args.channels_last:
-        model = model.to(memory_format=torch.channels_last)
-    
-    #send to device
-    model = model.to(torch.device(args.device))
+    model = model.to(memory_format=torch.channels_last)
+    model = model.to(torch.device(get_device_name()))
 
-    return model
+    model_without_ddp=model
+    if is_dist_avail_and_initialized():
+        if sync_bn: model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[torch.device(get_device_name())])
+    return model, model_without_ddp
