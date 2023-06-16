@@ -60,7 +60,7 @@ def main(args):
         max_ema_accuracy = -1.0
         
     if args.resume is not None:
-        max_accuracy, max_ema_accuracy = load_checkpoint(args, model_without_ddp, optimizer, lr_scheduler, logger, model_ema=model_ema)
+        max_accuracy, max_ema_accuracy = load_checkpoint(args, model_without_ddp, optimizer, lr_scheduler, model_ema=model_ema)
 
     #TODO: throughput and eval for deploy.
     #TODO: generate deploy file.
