@@ -91,7 +91,8 @@ def get_dataset_stats(dataset,means=None,stds=None):
     means = np.array(means)*255
     stds = np.array(stds)*255
     return means, stds
-    
+
+@param('data.dataset')    
 @param('data.num_classes')
 def get_num_classes(dataset,num_classes=None):
     if dataset in DATASET_NUM_CLASSES.keys():

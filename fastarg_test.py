@@ -3,7 +3,7 @@ from fastargs import get_current_config
 from fastargs.decorators import param
 from fastargs import Param, Section
 from fastargs.validation import And, OneOf
-
+import json
 
 Section('test','asdf').params(
     x=Param(int,'x',default=1)
@@ -22,7 +22,7 @@ def make_config():
     #config.add_entry(Section('test'),'dir','asdf')
     config.asdf=3
     print(config.__dict__)
-    print(type(config.content))
+    print(config.summary())
     print(dir(config))
     config.summary()
 
