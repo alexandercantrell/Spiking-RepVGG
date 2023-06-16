@@ -43,8 +43,8 @@ Section('data', 'dataset details').params(
 
 Section('data').enable_if(lambda cfg: cfg['data.dataset'] not in DATASET_STATS.keys()).params(
     num_classes=Param(int,'number of classes in dataset',required=True),
-    means=Param(tuple,'dataset means',required=True),
-    stds=Param(tuple,'dataset standard deviation values',required=True)
+    means=Param(str,'dataset means',required=True),
+    stds=Param(str,'dataset standard deviation values',required=True)
 )
 
 Section('train.pipeline').params(
@@ -85,6 +85,9 @@ Section('val.loader').params(
 def get_dataset_stats(dataset,means=None,stds=None):
     if dataset in DATASET_STATS.keys():
         (means,stds)=DATASET_STATS[dataset]
+    elif means is not None and stds is not None:
+        means = tuple(map(int, means.split(', ')))
+        stds = tuple(map(int, stds.split(', ')))
     means = np.array(means)*255
     stds = np.array(stds)*255
     return means, stds
