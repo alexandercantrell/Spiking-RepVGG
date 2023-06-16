@@ -30,3 +30,7 @@ class MetricLogger:
 
     def add_meter(self, name, meter):
         self.meters[name] = meter
+
+    def reset(self):
+        for meter in self.meters:
+            self.meters[meter].reset()
