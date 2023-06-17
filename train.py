@@ -28,8 +28,11 @@ def print_tensors():
         try:
             if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
                 print(type(obj), obj.size())
+                counter+=1
         except:
             pass
+    print(f"num_tensors: {counter}")
+    
 
 Section('train','').params(
     epochs=Param(int,'',default=120),
