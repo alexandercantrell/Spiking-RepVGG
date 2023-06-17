@@ -161,6 +161,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None
     #loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
     #metric_logger.reset()
     #return loss, acc1, acc5
+    print(torch.cuda.memory_summary())
     return 0,0,0
 
 @torch.no_grad()
@@ -194,6 +195,7 @@ def validate(model,criterion,data_loader):
     #loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
     #metric_logger.reset()
     #return loss, acc1, acc5
+    print(torch.cuda.memory_summary())
     return 0,0,0
 
 @torch.no_grad()
