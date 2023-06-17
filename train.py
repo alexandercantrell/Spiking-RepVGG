@@ -21,6 +21,16 @@ from train.metrics import MetricLogger
 
 from train import build_train_loader, build_val_loader, get_num_classes, build_model, build_optimizer, build_scheduler
 
+import gc
+
+def print_tensors():
+    for obj in gc.get_objects():
+        try:
+            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                print(type(obj), obj.size())
+        except:
+            pass
+
 Section('train','').params(
     epochs=Param(int,'',default=120),
 )
@@ -137,6 +147,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None
     #metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
 
     for (samples, targets) in tqdm(data_loader):
+        print_tensors()
         start_time = time.time()
         optimizer.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not config['model.disable_amp']):
@@ -161,11 +172,12 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None
     #loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
     #metric_logger.reset()
     #return loss, acc1, acc5
-    print(torch.cuda.memory_summary())
+    print_tensors()
     return 0,0,0
 
 @torch.no_grad()
 def validate(model,criterion,data_loader):
+    print_tensors()
     model.eval()
     #metric_logger = MetricLogger(delimiter="  ")
     #metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
@@ -195,7 +207,7 @@ def validate(model,criterion,data_loader):
     #loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
     #metric_logger.reset()
     #return loss, acc1, acc5
-    print(torch.cuda.memory_summary())
+    print_tensors()
     return 0,0,0
 
 @torch.no_grad()
