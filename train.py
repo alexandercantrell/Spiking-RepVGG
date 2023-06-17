@@ -24,6 +24,7 @@ from train import build_train_loader, build_val_loader, get_num_classes, build_m
 import gc
 
 def print_tensors():
+    counter=0
     for obj in gc.get_objects():
         try:
             if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
