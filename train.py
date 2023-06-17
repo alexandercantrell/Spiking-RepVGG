@@ -139,6 +139,7 @@ def process_model_output(y:torch.Tensor,T: int):
         return y
     
 def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None):
+    print_tensors()
     model.train()
     #metric_logger = MetricLogger(delimiter=" ")
     #metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
@@ -147,7 +148,6 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None
     #metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
 
     for (samples, targets) in tqdm(data_loader):
-        print_tensors()
         start_time = time.time()
         optimizer.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not config['model.disable_amp']):
