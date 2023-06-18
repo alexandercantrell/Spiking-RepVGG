@@ -102,8 +102,7 @@ def xor_cnf(x,y):
 class XOR(Function):
     @staticmethod
     def forward(x,y):
-        #return (x+y)%2
-        return (x-y).abs()
+        return (x+y)%2
     @staticmethod
     def setup_context(ctx,inputs,output):
         x, y = inputs
