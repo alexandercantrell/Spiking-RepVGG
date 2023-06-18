@@ -28,7 +28,6 @@ def print_tensors():
     for obj in gc.get_objects():
         try:
             if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                print(type(obj), obj.size())
                 counter+=1
         except:
             pass
