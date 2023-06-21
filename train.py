@@ -153,7 +153,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None
     for (samples, targets) in tqdm(data_loader):
         start_time = time.time()
         optimizer.zero_grad(set_to_none=True)
-        with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not config['model.disable_amp']):
+        with torch.cuda.amp.autocast(dtype=torch.float16, enabled = scaler is not None):
             samples = preprocess_sample(samples)
             outputs = model(samples)
             outputs = process_model_output(outputs)

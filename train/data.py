@@ -49,17 +49,6 @@ Section('data').enable_if(lambda cfg: cfg['data.dataset'] not in DATASET_STATS.k
 
 Section('train.pipeline').params(
     crop_size=Param(int,'',default=176),
-    mixup_alpha=Param(float,'',default=0.0),
-    auto_augment=Param(str,'',default=None),
-    random_erase=Param(float,'',default=0.0),
-)
-
-Section('train.pipeline.randaugment').enable_if(lambda cfg: cfg['train.pipeline.auto_augment']=='randaugment').params(
-    magnitude=Param(int,'',default=9)
-)
-
-Section('train.pipeline.augmix').enable_if(lambda cfg: cfg['train.pipeline.auto_augment']=='augmix').params(
-    severity=Param(int,'',default=3)
 )
 
 Section('train.loader').params(
@@ -99,64 +88,26 @@ def get_num_classes(dataset,num_classes=None):
         num_classes = DATASET_NUM_CLASSES[dataset]
     return num_classes
 
-@param('train.pipeline.randaugment.magnitude')
-def build_random_augment(magnitude):
-    interpolation=InterpolationMode('bilinear')
-    return autoaugment.RandAugment(interpolation=interpolation,magnitude=magnitude)
-
-def build_trivial_augment():
-    interpolation=InterpolationMode('bilinear')
-    return autoaugment.TrivialAugmentWide(interpolation=interpolation)
-
-@param('train.pipeline.augmix.severity')
-def build_augmix(severity):
-    interpolation=InterpolationMode('bilinear')
-    return autoaugment.AugMix(interpolation=interpolation,severity=severity)
-
-@param('train.pipeline.auto_augment')
-def build_autoaugment(auto_augment):
-    interpolation=InterpolationMode('bilinear')
-    aa_policy=autoaugment.AutoAugmentPolicy(auto_augment)
-    return autoaugment.AutoAugment(policy=aa_policy,interpolation=interpolation)
-
 @param('train.pipeline.crop_size')
-@param('train.pipeline.mixup_alpha')
-@param('train.pipeline.random_erase')
 @param('model.disable_amp')
-@param('train.pipeline.auto_augment')
-def build_train_pipelines(crop_size,mixup_alpha,random_erase,disable_amp,auto_augment=None):
+def build_train_pipelines(crop_size,disable_amp):
     device = torch.device(get_device_name())
     res_tuple = (crop_size,crop_size)
-    image_pipeline=[RandomResizedCropRGBImageDecoder(res_tuple),
-                    RandomHorizontalFlip()]
-    if mixup_alpha>0:
-        image_pipeline.append(ImageMixup(alpha=mixup_alpha,same_lambda=True))
-    if auto_augment is not None:
-        if auto_augment=='randaugment':
-            image_pipeline.append(build_random_augment())
-        elif auto_augment=='trivialaugment':
-            image_pipeline.append(build_trivial_augment())
-        elif auto_augment=='augmix':
-            image_pipeline.append(build_augmix())
-        else:
-            image_pipeline.append(build_autoaugment())
-    image_pipeline.extend([
+    image_pipeline=[
+        RandomResizedCropRGBImageDecoder(res_tuple),
+        RandomHorizontalFlip(),
         ToTensor(),
         ToDevice(device,non_blocking=True),
         ToTorchImage(),
-        NormalizeImage(*get_dataset_stats(),np.float32 if disable_amp else np.float16)
-    ])
-    if random_erase>0:
-        image_pipeline.append(transforms.RandomErasing(p=random_erase))
+        NormalizeImage(*get_dataset_stats(),np.float16)
+    ]
 
-    label_pipeline=[IntDecoder()]
-    if mixup_alpha>0:
-        label_pipeline.append(LabelMixup(alpha=mixup_alpha,same_lambda=True))
-    label_pipeline.extend([
+    label_pipeline=[
+        IntDecoder(),
         ToTensor(),
         Squeeze(),
         ToDevice(device,non_blocking=True)
-    ])
+    ]
 
     pipelines = {
         'image': image_pipeline,
@@ -179,7 +130,7 @@ def build_train_loader(path,batch_size,workers,in_memory):
         num_workers=workers,
         order=order,
         os_cache=in_memory,
-        drop_last=True,
+        drop_last=False,
         pipelines=pipelines,
         distributed=distributed,
     )
@@ -197,7 +148,7 @@ def build_val_pipelines(resize_size,crop_size,disable_amp):
         ToTensor(),
         ToDevice(device,non_blocking=True),
         ToTorchImage(),
-        NormalizeImage(*get_dataset_stats(),np.float32 if disable_amp else np.float16)
+        NormalizeImage(*get_dataset_stats(), np.float16)
     ]
 
     label_pipeline=[
@@ -228,7 +179,7 @@ def build_val_loader(path, batch_size, workers, in_memory):
         num_workers=workers,
         order=OrderOption.SEQUENTIAL,
         os_cache=in_memory,
-        drop_last=True,
+        drop_last=False,
         pipelines=pipelines,
         distributed=distributed, 
     )
