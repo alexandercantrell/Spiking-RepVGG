@@ -179,7 +179,7 @@ def build_train_loader(path,batch_size,workers,in_memory):
         num_workers=workers,
         order=order,
         os_cache=in_memory,
-        drop_last=False,
+        drop_last=True,
         pipelines=pipelines,
         distributed=distributed,
     )
@@ -228,7 +228,7 @@ def build_val_loader(path, batch_size, workers, in_memory):
         num_workers=workers,
         order=OrderOption.SEQUENTIAL,
         os_cache=in_memory,
-        drop_last=False,
+        drop_last=True,
         pipelines=pipelines,
         distributed=distributed, 
     )
