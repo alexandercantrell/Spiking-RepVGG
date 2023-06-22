@@ -135,7 +135,7 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler):
     metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
     metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
 
-    for (samples, targets) in tqdm(data_loader):
+    for idx, (samples, targets) in enumerate(tqdm(data_loader)):
         start_time = time.time()
         optimizer.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast():
@@ -152,6 +152,8 @@ def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler):
         metric_logger.meters["acc5"](outputs.detach(),targets.detach())
         metric_logger.meters["loss"](loss.detach().item())
         metric_logger.meters["img/s"](targets.shape[0] / (time.time() - start_time))
+        if idx==0:
+            torch.cuda.empty_cache()
     logger.info(f'Train Epoch [{epoch}/{config["train.epochs"]}]: {str(metric_logger)}')
     loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
     metric_logger.reset()
@@ -166,7 +168,7 @@ def validate(model,criterion,data_loader):
     metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
     with torch.no_grad():
         with torch.cuda.amp.autocast():
-            for samples, targets in tqdm(data_loader):
+            for idx, (samples, targets) in enumerate(tqdm(data_loader)):
                 start_time = time.time()
                 samples = preprocess_sample(samples)
                 outputs = model(samples)
@@ -182,7 +184,8 @@ def validate(model,criterion,data_loader):
                 metric_logger.meters["acc5"](outputs,targets)
                 metric_logger.meters["loss"](loss.item())
                 metric_logger.meters["img/s"](batch_size / (time.time() - start_time))
-
+                if idx==0:
+                    torch.cuda.empty_cache()
     logger.info(f'Test: {str(metric_logger)}')
     loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
     metric_logger.reset()
