@@ -19,8 +19,8 @@ Section('model', 'model details').params(
     fast_atan=Param(bool,'whether or not to use the FastATan surrogate',is_flag=True),
     atan_alpha=Param(float,'atan alpha',default=2.0),
     cnf = Param(str,'cnf',default='FAST_XOR'),
-    use_cupy = Param(bool,'use cupy',is_flag=True),
-    use_checkpoints=Param(bool,'use gradient checkpointing',is_flag=True),
+    cupy = Param(bool,'use cupy',is_flag=True),
+    checkpoint=Param(bool,'use gradient checkpointing',is_flag=True),
     sync_bn=Param(bool,'',is_flag=True),
     resume=Param(str,'',default=None),
     zero_init=Param(bool,'',is_flag=True)
@@ -31,11 +31,11 @@ Section('model', 'model details').params(
 @param('model.atan_alpha')
 @param('model.cnf')
 @param('data.T')
-@param('model.use_cupy')
-@param('model.use_checkpoints')
+@param('model.cupy')
+@param('model.checkpoint')
 @param('model.sync_bn')
 @param('model.zero_init') #TODO:implement
-def build_model(arch,fast_atan,atan_alpha,cnf,T,use_cupy,use_checkpoints,sync_bn,zero_init):
+def build_model(arch,fast_atan,atan_alpha,cnf,T,cupy,checkpoint,sync_bn,zero_init):
     num_classes = get_num_classes()
     surrogate_function = surrogate.ATan(alpha=atan_alpha)
     if fast_atan:
@@ -43,13 +43,13 @@ def build_model(arch,fast_atan,atan_alpha,cnf,T,use_cupy,use_checkpoints,sync_bn
         surrogate_function = FastATan(alpha=atan_alpha/2.0)
 
     if 'StaticSpikingRepVGG' in arch:
-        model = get_StaticSpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=use_checkpoints,
+        model = get_StaticSpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=checkpoint,
                         cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
     elif 'HybridSpikingRepVGG' in arch:
-        model = get_HybridSpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=use_checkpoints,
+        model = get_HybridSpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=checkpoint,
                         cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
     elif 'SpikingRepVGG' in arch:
-        model = get_SpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=use_checkpoints,
+        model = get_SpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=checkpoint,
                         cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
     else:
         raise ValueError(f"Model architecture {arch} does not exist!")
@@ -58,7 +58,7 @@ def build_model(arch,fast_atan,atan_alpha,cnf,T,use_cupy,use_checkpoints,sync_bn
     else:
         functional.set_step_mode(model,'s')
 
-    if use_cupy:
+    if cupy:
         functional.set_backend(model,'cupy',instance=neuron.IFNode)
 
     model = model.to(memory_format=torch.channels_last)

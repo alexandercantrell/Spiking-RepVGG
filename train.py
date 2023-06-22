@@ -89,25 +89,25 @@ def main():
     for epoch in range(start_epoch, config['train.epochs']):
         train_loss, train_acc1, train_acc5 = train_one_epoch(model,criterion,optimizer,data_loader_train,epoch,scaler=scaler)
         lr_scheduler.step()
-        #if is_main_process():
-        #    save_latest(config,epoch,model_without_ddp, max_accuracy, optimizer, lr_scheduler, scaler=scaler)
-        #    tb_writer.add_scalar('train_loss',train_loss,epoch)
-        #    tb_writer.add_scalar('train_acc1',train_acc1,epoch)
-        #    tb_writer.add_scalar('train_acc5',train_acc5,epoch)
+        if is_main_process():
+            save_latest(config,epoch,model_without_ddp, max_accuracy, optimizer, lr_scheduler, scaler=scaler)
+            tb_writer.add_scalar('train_loss',train_loss,epoch)
+            tb_writer.add_scalar('train_acc1',train_acc1,epoch)
+            tb_writer.add_scalar('train_acc5',train_acc5,epoch)
 
         if epoch % config['output.save_freq'] == 0 or epoch >= (config['train.epochs'] - 10):
             val_loss, val_acc1, val_acc5 = validate(model,criterion,data_loader_val)
             logger.info(f"Accuracy of the network at epoch {epoch}: {val_acc1:.3f}%")
             max_accuracy = max(max_accuracy, val_acc1)
             logger.info(f'Max accuracy: {max_accuracy:.2f}%')
-            #if is_main_process():
-            #    save_checkpoint(config,epoch,model_without_ddp, max_accuracy, optimizer, lr_scheduler, scaler=scaler)
-            #    tb_writer.add_scalar('val_loss',val_loss,epoch)
-            #    tb_writer.add_scalar('val_acc1',val_acc1,epoch)
-            #    tb_writer.add_scalar('val_acc5',val_acc5,epoch)
-            #    if max_accuracy == val_acc1:
-            #        save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler,
-            #                        is_best=True, scaler=scaler)
+            if is_main_process():
+                save_checkpoint(config,epoch,model_without_ddp, max_accuracy, optimizer, lr_scheduler, scaler=scaler)
+                tb_writer.add_scalar('val_loss',val_loss,epoch)
+                tb_writer.add_scalar('val_acc1',val_acc1,epoch)
+                tb_writer.add_scalar('val_acc5',val_acc5,epoch)
+                if max_accuracy == val_acc1:
+                    save_checkpoint(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler,
+                                    is_best=True, scaler=scaler)
     
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
