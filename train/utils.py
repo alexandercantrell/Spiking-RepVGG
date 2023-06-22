@@ -151,8 +151,8 @@ def set_deterministic(deterministic):
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
         # set a debug environment variable CUBLAS_WORKSPACE_CONFIG to ":16:8" (may limit overall performance) or ":4096:8" (will increase library footprint in GPU memory by approximately 24MiB).
         torch.use_deterministic_algorithms(True)
-    #else:
-    #    cudnn.benchmark=True
+    else:
+        cudnn.benchmark=True
 
 def init_distributed_mode():
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:

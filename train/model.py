@@ -22,7 +22,6 @@ Section('model', 'model details').params(
     use_cupy = Param(bool,'use cupy',is_flag=True),
     use_checkpoints=Param(bool,'use gradient checkpointing',is_flag=True),
     sync_bn=Param(bool,'',is_flag=True),
-    disable_amp=Param(bool,'',is_flag=True),
     resume=Param(str,'',default=None),
     zero_init=Param(bool,'',is_flag=True)
 )

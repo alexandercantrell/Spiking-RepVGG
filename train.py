@@ -21,18 +21,6 @@ from train.metrics import MetricLogger
 torch.backends.cuda.matmul.allow_tf32 = True
 
 from train import build_train_loader, build_val_loader, get_num_classes, build_model, build_optimizer, build_scheduler
-
-import gc
-
-def print_tensors():
-    counter=0
-    for obj in gc.get_objects():
-        try:
-            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                counter+=1
-        except:
-            pass
-    print(f"num_tensors: {counter}")
     
 
 Section('train','').params(
@@ -80,10 +68,7 @@ def main():
         logger.info(f"Only eval. top-1 acc, top-5 acc, loss: {acc1:.3f}, {acc5:.3f}, {loss:.5f}")
         return
     
-    if config['model.disable_amp']:
-        scaler = None
-    else:
-        scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.cuda.amp.GradScaler()
 
 
     optimizer = build_optimizer(model)
@@ -142,101 +127,88 @@ def process_model_output(y:torch.Tensor,T: int):
     else:
         return y
     
-def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler=None):
-    print_tensors()
+def train_one_epoch(model, criterion, optimizer, data_loader, epoch, scaler):
     model.train()
-    #metric_logger = MetricLogger(delimiter=" ")
-    #metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
-    #metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
-    #metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
-    #metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
+    metric_logger = MetricLogger(delimiter=" ")
+    metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
+    metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
+    metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
+    metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
 
     for (samples, targets) in tqdm(data_loader):
         start_time = time.time()
         optimizer.zero_grad(set_to_none=True)
-        with torch.cuda.amp.autocast(dtype=torch.float16, enabled = scaler is not None):
+        with torch.cuda.amp.autocast():
             samples = preprocess_sample(samples)
             outputs = model(samples)
             outputs = process_model_output(outputs)
             loss = criterion(outputs, targets)
-        if scaler is not None:
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            loss.backward()
-            optimizer.step()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
         functional.reset_net(model)
         
-        #metric_logger.meters["acc1"](outputs.detach(),targets.detach())
-        #metric_logger.meters["acc5"](outputs.detach(),targets.detach())
-        #metric_logger.meters["loss"](loss.detach().item())
-        #metric_logger.meters["img/s"](targets.shape[0] / (time.time() - start_time))
-    #logger.info(f'Train Epoch [{epoch}/{config["train.epochs"]}]: {str(metric_logger)}')
-    #loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
-    #metric_logger.reset()
-    #return loss, acc1, acc5
-    print_tensors()
-    del loss
-    return 0,0,0
+        metric_logger.meters["acc1"](outputs.detach(),targets.detach())
+        metric_logger.meters["acc5"](outputs.detach(),targets.detach())
+        metric_logger.meters["loss"](loss.detach().item())
+        metric_logger.meters["img/s"](targets.shape[0] / (time.time() - start_time))
+    logger.info(f'Train Epoch [{epoch}/{config["train.epochs"]}]: {str(metric_logger)}')
+    loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
+    metric_logger.reset()
+    return loss, acc1, acc5
 
-@torch.no_grad()
 def validate(model,criterion,data_loader):
-    print_tensors()
     model.eval()
-    #metric_logger = MetricLogger(delimiter="  ")
-    #metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
-    #metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
-    #metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
-    #metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
-    
-    with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not config['model.disable_amp']):
-        for samples, targets in tqdm(data_loader):
-            start_time = time.time()
-            samples = preprocess_sample(samples)
-            outputs = model(samples)
-            functional.reset_net(model)
-            if config['val.test_flip']:
-                outputs += model(torch.flip(samples,dims=[-1]))
+    metric_logger = MetricLogger(delimiter="  ")
+    metric_logger.add_meter("acc1", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False).to(torch.device(get_device_name())))
+    metric_logger.add_meter("acc5", torchmetrics.Accuracy(task='multiclass',num_classes=get_num_classes(),compute_on_step=False,top_k=5).to(torch.device(get_device_name())))
+    metric_logger.add_meter("loss", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
+    metric_logger.add_meter("img/s", torchmetrics.MeanMetric(compute_on_step=False).to(torch.device(get_device_name())))
+    with torch.no_grad():
+        with torch.cuda.amp.autocast():
+            for samples, targets in tqdm(data_loader):
+                start_time = time.time()
+                samples = preprocess_sample(samples)
+                outputs = model(samples)
+                if config['val.test_flip']:
+                    functional.reset_net(model)
+                    outputs += model(torch.flip(samples,dims=[-1]))
+                outputs = process_model_output(outputs)
                 functional.reset_net(model)
-            outputs = process_model_output(outputs)
-            loss = criterion(outputs, targets)
-            batch_size = targets.shape[0]
-            if config['val.test_flip']:batch_size*=2
-            #metric_logger.meters["acc1"](outputs,targets)
-            #metric_logger.meters["acc5"](outputs,targets)
-            #metric_logger.meters["loss"](loss.item())
-            #metric_logger.meters["img/s"](batch_size / (time.time() - start_time))
+                loss = criterion(outputs, targets)
+                batch_size = targets.shape[0]
+                if config['val.test_flip']:batch_size*=2
+                metric_logger.meters["acc1"](outputs,targets)
+                metric_logger.meters["acc5"](outputs,targets)
+                metric_logger.meters["loss"](loss.item())
+                metric_logger.meters["img/s"](batch_size / (time.time() - start_time))
 
-    #logger.info(f'Test: {str(metric_logger)}')
-    #loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
-    #metric_logger.reset()
-    #return loss, acc1, acc5
-    print_tensors()
-    del loss
-    return 0,0,0
+    logger.info(f'Test: {str(metric_logger)}')
+    loss,acc1,acc5=metric_logger.compute(('loss','acc1','acc5'))
+    metric_logger.reset()
+    return loss, acc1, acc5
 
-@torch.no_grad()
 def throughput(model,data_loader):
     model.eval()
-    with torch.cuda.amp.autocast(dtype=torch.float16, enabled = not config['model.disable_amp']):
-        for samples, targets in data_loader:
-            samples = preprocess_sample(samples)
-            batch_size = targets.shape[0]
-            for _ in range(50):
-                model(samples)
-                functional.reset_net(model)
-            torch.cuda.synchronize()
-            logger.info(f"throughput averaged with 30 times")
-            tic1 = time.time()
-            for _ in range(30):
-                model(samples)
-                functional.reset_net(model)
-            torch.cuda.synchronize()
-            tic2 = time.time()
-            throughput = 30 * batch_size / (tic2-tic1)
-            logger.info(f"batch_size {batch_size} throughput {throughput}")
-            return
+    with torch.no_grad():
+        with torch.cuda.amp.autocast():
+            for samples, targets in data_loader:
+                samples = preprocess_sample(samples)
+                batch_size = targets.shape[0]
+                for _ in range(50):
+                    model(samples)
+                    functional.reset_net(model)
+                torch.cuda.synchronize()
+                logger.info(f"throughput averaged with 30 times")
+                tic1 = time.time()
+                for _ in range(30):
+                    model(samples)
+                    functional.reset_net(model)
+                torch.cuda.synchronize()
+                tic2 = time.time()
+                throughput = 30 * batch_size / (tic2-tic1)
+                logger.info(f"batch_size {batch_size} throughput {throughput}")
+                return
 
 def make_config(quiet=False):
     config = get_current_config()
