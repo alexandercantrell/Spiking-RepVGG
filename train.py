@@ -18,7 +18,7 @@ from train.utils import *
 
 from train.logger import create_logger
 from train.metrics import MetricLogger
-#torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cuda.matmul.allow_tf32 = True
 
 from train import build_train_loader, build_val_loader, get_num_classes, build_model, build_optimizer, build_scheduler
 
