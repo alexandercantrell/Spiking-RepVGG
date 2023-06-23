@@ -168,7 +168,11 @@ class Trainer:
 
     @param('data.dataset')
     def set_dataset_stats(self,dataset):
-        self.means, self.stds = DATASET_STATS[dataset]
+        means, stds = DATASET_STATS[dataset]
+        means = np.array(means)*255
+        stds = np.array(stds)*255
+        self.means=means
+        self.stds = stds
         self.num_classes = DATASET_NUM_CLASSES[dataset]
 
     @param('data.path')
