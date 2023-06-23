@@ -145,14 +145,13 @@ class Trainer:
         self.train_loader = self.create_train_loader()
         self.val_loader = self.create_val_loader()
         self.model, self.scaler = self.create_model_and_scaler()
-        self.create_optimizer()
-        self.create_scheduler()
-        self.initialize_logger()
         self.start_epoch=0
         self.max_accuracy=-1
         if resume is not None:
             self.load_checkpoint()
-
+        self.create_optimizer()
+        self.create_scheduler()
+        self.initialize_logger()
     @param('dist.address')
     @param('dist.port')
     @param('dist.world_size')
@@ -336,9 +335,9 @@ class Trainer:
     def create_scheduler(self,scheduler,epochs,warmup_epochs,step_size=None,gamma=None,eta_min=None,warmup_method=None,warmup_decay=None):
         scheduler=scheduler.lower()
         if scheduler == "step":
-            main_lr_scheduler = ch.optim.lr_scheduler.StepLR(self.optimizer,step_size=step_size,gamma=gamma)
+            main_lr_scheduler = ch.optim.lr_scheduler.StepLR(self.optimizer,step_size=step_size,gamma=gamma,last_epoch=self.start_epoch-1)
         elif scheduler == 'cosa':
-            main_lr_scheduler = ch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,T_max=epochs-warmup_epochs,eta_min=eta_min)
+            main_lr_scheduler = ch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,T_max=epochs-warmup_epochs,eta_min=eta_min,last_epoch=self.start_epoch-1)
         else:
             raise RuntimeError(
                 f"Invalid lr scheduler '{scheduler}'. Only StepLR and CosineAnnealingLR are supported."
@@ -358,7 +357,7 @@ class Trainer:
                     f"Invalid warmup lr method '{warmup_method}'. Only linear and constant are supported."
                 )
             lr_scheduler = ch.optim.lr_scheduler.SequentialLR(
-                self.optimizer, schedulers=[warmup_lr_scheduler, main_lr_scheduler], milestones=[warmup_epochs]
+                self.optimizer, schedulers=[warmup_lr_scheduler, main_lr_scheduler], milestones=[warmup_epochs], last_epoch=self.start_epoch-1
             )
         else:
             lr_scheduler = main_lr_scheduler
@@ -517,7 +516,6 @@ class Trainer:
     def log(self, content):
         print(f'=> Log: {content}')
         if self.gpu != 0: return
-        cur_time = time.time()
         with open(os.path.join(self.log_folder, 'log'), 'a+') as fd:
             fd.write(content + '\n')
             fd.flush()
@@ -531,13 +529,9 @@ class Trainer:
             model = self.model
         checkpoint = {
             "model": model.state_dict(),
-            "optimizer": self.optimizer.state_dict(),
-            "lr_scheduler": self.lr_scheduler.state_dict(),
             "epoch": epoch,
             "max_accuracy": self.max_accuracy
         }
-        if self.scaler:
-            checkpoint["scaler"] = self.scaler.state_dict()
         if self.gpu==0:
             ch.save(checkpoint,path)
             self.log(f"Saved checkpoint to: {path}")
@@ -585,14 +579,10 @@ class Trainer:
             msg = self.model.module.load_state_dict(checkpoint['model'],strict=False)
         else:
             msg = self.model.load_state_dict(checkpoint['model'],strict=False)
-        self.log(msg)
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+        print(msg)
         self.start_epoch = checkpoint["epoch"] + 1
         self.max_accuracy=checkpoint['max_accuracy']
-        if self.scaler:
-            self.scaler.load_state_dict(checkpoint['scaler'])
-        self.log(f"Successfully loaded '{resume}' (epoch {checkpoint['epoch']})")
+        print(f"Successfully loaded '{resume}' (epoch {checkpoint['epoch']})")
         del checkpoint
 
     @classmethod
