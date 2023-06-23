@@ -39,9 +39,9 @@ from spikingjelly.activation_based import surrogate, neuron, functional
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', default=None),
-    surrogate_fn=Param(str,'surrogate',default='fast_atan'),
-    surrogate_alpha=Param(float,'surrogate alpha',default=2.0),
-    cnf = Param(str,'cnf',default='XOR'),
+    fast_atan=Param(bool,'surrogate',is_flag=True),
+    atan_alpha=Param(float,'atan alpha',default=2.0),
+    cnf = Param(str,'cnf',default='FAST_XOR'),
     num_classes = Param(int,'num classes',default=1000),
     cupy = Param(int,default=0),
     detach_reset = Param(int,default=1)
@@ -338,29 +338,27 @@ class ImageNetTrainer:
         return stats
 
     @param('model.arch')
-    @param('model.surrogate_fn')
-    @param('model.surrogate_alpha')
-    @param('model.detach_reset')
+    @param('model.fast_atan')
+    @param('model.atan_alpha')
     @param('model.cnf')
     @param('model.cupy')
     @param('model.num_classes')
     @param('data.T')
     @param('training.distributed')
-    @param('training.use_blurpool')
-    def create_model_and_scaler(self, arch, surrogate_fn, surrogate_alpha,detach_reset, cnf, cupy, num_classes, T, distributed, use_blurpool):
+    def create_model_and_scaler(self, arch, fast_atan, atan_alpha, cnf, cupy, num_classes, T, distributed):
         scaler = GradScaler()
-        surrogate_function = surrogate.ATan(alpha=surrogate_alpha)
-        if surrogate_fn=='fast_atan':
-            surrogate_function = FastATan(alpha=surrogate_alpha/2.0)
+        surrogate_function = surrogate.ATan(alpha=atan_alpha)
+        if fast_atan:
+            surrogate_function = FastATan(alpha=atan_alpha/2.0)
         if 'StaticSpikingRepVGG' in arch:
             model = get_StaticSpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=bool(detach_reset))
+                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
         elif 'HybridSpikingRepVGG' in arch:
             model = get_HybridSpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=bool(detach_reset))
+                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
         elif 'SpikingRepVGG' in arch:
             model = get_SpikingRepVGG_func_by_name(arch)(num_classes=num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=bool(detach_reset))
+                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
         else:
             raise ValueError(f"Model architecture {arch} does not exist!")
         
@@ -371,13 +369,6 @@ class ImageNetTrainer:
 
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.IFNode)
-
-        def apply_blurpool(mod: ch.nn.Module):
-            for (name, child) in mod.named_children():
-                if isinstance(child, ch.nn.Conv2d) and (np.max(child.stride) > 1 and child.in_channels >= 16): 
-                    setattr(mod, name, BlurPoolConv2d(child))
-                else: apply_blurpool(child)
-        if use_blurpool: apply_blurpool(model)
 
         model = model.to(memory_format=ch.channels_last)
         model = model.to(self.gpu)
