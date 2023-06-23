@@ -511,14 +511,14 @@ class Trainer:
                 '.'.join(k): self.all_params[k] for k in self.all_params.entries.keys()
             }
 
-            with open(folder / 'params.json', 'w+') as handle:
+            with open(os.path.join(folder, 'params.json'), 'w+') as handle:
                 json.dump(params, handle)
 
     def log(self, content):
         print(f'=> Log: {content}')
         if self.gpu != 0: return
         cur_time = time.time()
-        with open(self.log_folder / 'log', 'a+') as fd:
+        with open(os.path.join(self.log_folder, 'log'), 'a+') as fd:
             fd.write(json.dumps({
                 'timestamp': cur_time,
                 'relative_time': cur_time - self.start_time,
