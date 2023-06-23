@@ -80,7 +80,7 @@ Section('data', 'data related stuff').params(
 )
 
 Section('lr','lr scheduling').params(
-    lr=Param(float,'',default=0.1),
+    lr=Param(float,'',default=0.5),
     scheduler=Param(And(str,OneOf(['step','cosa'])),'',default='cosa'),
     warmup_epochs=Param(int,'',default=5)
 )
@@ -133,9 +133,9 @@ Section('dist', 'distributed training options').params(
 )
 
 class Trainer:
-    @param('model.resume')
     @param('dist.distributed')
-    def __init__(self, gpu, resume, distributed):
+    @param('model.resume')
+    def __init__(self, gpu, distributed, resume=None):
         self.all_params = get_current_config()
         self.gpu = gpu
 
