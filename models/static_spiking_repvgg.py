@@ -108,7 +108,7 @@ class StaticSpikingRepVGGBlock(nn.Module):
 
 class StaticSpikingRepVGG(nn.Module):
 
-    def __init__(self, num_blocks, num_classes=1000, width_multiplier=None, override_groups_map=None, deploy=False, use_checkpoint=False, cnf=None, spiking_neuron=None, **kwargs):
+    def __init__(self, num_blocks, num_classes=1000, width_multiplier=None, override_groups_map=None, deploy=False, use_checkpoint=False, cnf=None, spiking_neuron=None, zero_init_residual=False, **kwargs):
         super(StaticSpikingRepVGG, self).__init__()
         assert len(width_multiplier) == 4
         self.deploy = deploy
@@ -126,6 +126,25 @@ class StaticSpikingRepVGG(nn.Module):
         self.stage4, self.sn4 = self._make_stage(int(512 * width_multiplier[3]), num_blocks[3], stride=2, cnf=cnf, spiking_neuron=spiking_neuron, **kwargs)
         self.gap = layer.AdaptiveAvgPool2d((1,1))
         self.linear = layer.Linear(int(512 * width_multiplier[3]), num_classes)
+
+        for m in self.modules():
+            if isinstance(m, layer.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, (layer.BatchNorm2d, layer.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+        if zero_init_residual:
+            for m in self.modules():
+                if isinstance(m, StaticSpikingRepVGGBlock) and m.cnf is not None:
+                    if m.rbr_1x1 is not None:
+                        nn.init.constant_(m.rbr_1x1.modules[1].weight,0)
+                        if cnf == 'AND':
+                            nn.init.constant_(m.rbr_1x1.modules[1].bias,1)
+                    if m.rbr_dense is not None:
+                        nn.init.constant_(m.rbr_dense.modules[1].weight,0)
+                        if cnf == 'AND':
+                            nn.init.constant_(m.rbr_dense.modules[1].bias,1)
 
     def _make_stage(self, planes, num_blocks, stride, cnf, spiking_neuron, **kwargs):
         sn = spiking_neuron(**deepcopy(kwargs))
