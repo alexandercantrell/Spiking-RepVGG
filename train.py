@@ -534,6 +534,8 @@ class Trainer:
             model = self.model
         checkpoint = {
             "model": model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "scaler": self.scaler.state_dict(),
             "epoch": epoch,
             "max_accuracy": self.max_accuracy
         }
