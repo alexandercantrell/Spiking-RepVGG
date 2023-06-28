@@ -4,7 +4,6 @@ from torch.cuda.amp import GradScaler
 from torch.cuda.amp import autocast
 import torch.nn.functional as F
 import torch.distributed as dist
-ch.backends.cudnn.benchmark = True
 from torch.utils.tensorboard import SummaryWriter
 import torchmetrics
 import numpy as np
@@ -37,6 +36,12 @@ from models.hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
 
 from spikingjelly.activation_based import surrogate, neuron, functional
+
+SEED=2020
+ch.backends.cudnn.benchmark = True
+ch.manual_seed(SEED)
+ch.cuda.manual_seed_all(SEED)
+np.random.seed(SEED)
 
 IMAGENET_MEANS = (0.485, 0.456, 0.406)
 IMAGENET_STDS = (0.229, 0.224, 0.225)
