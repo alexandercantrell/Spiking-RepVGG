@@ -1,0 +1,8 @@
+SpikingRepVGG-A0 -> ADD 
+QASpikingRepVGG-A0 -> ADD 
+ID version of best -> ADD 
+best -> NOR 
+best -> XOR 
+best -> XNOR
+StaticSpikingRepVGG-A0 -> best cnf 
+HybridSpikingRepVGG-A0 -> best cnf
