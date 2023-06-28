@@ -110,7 +110,7 @@ class HybridSpikingRepVGGBlock(nn.Module):
 
 class HybridSpikingRepVGG(nn.Module):
 
-    def __init__(self, num_blocks, num_classes=1000, width_multiplier=None, override_groups_map=None, deploy=False, use_checkpoint=False, cnf=None, spiking_neuron=None, zero_init_residual=False, **kwargs):
+    def __init__(self, num_blocks, num_classes=1000, width_multiplier=None, override_groups_map=None, deploy=False, use_checkpoint=False, cnf=None, spiking_neuron=None, zero_init_residual=True, **kwargs):
         super(HybridSpikingRepVGG, self).__init__()
         assert len(width_multiplier) == 4
         self.deploy = deploy

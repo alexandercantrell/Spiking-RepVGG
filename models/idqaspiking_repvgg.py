@@ -37,6 +37,11 @@ class IDQASpikingRepVGGBlock(nn.Module):
             self.rbr_dense = conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, groups=groups)
             self.rbr_1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, groups=groups, bias=False,padding=padding_11)
 
+        if self.downsample_block:#TODO: fix for deploy
+            self.downsample=conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, padding=padding_11, groups=groups)
+        else:
+            self.downsample=nn.Identity()
+
         self.bn = nn.BatchNorm2d(out_channels)
         self.sn = spiking_neuron(**deepcopy(kwargs))
         self.cnf = ConnectingFunction(cnf)
@@ -50,8 +55,7 @@ class IDQASpikingRepVGGBlock(nn.Module):
         else:
             out = self.sn(self.bn(self.rbr_dense(inputs) + self.rbr_1x1(inputs)))
 
-        if self.cnf is not None:
-            out = self.cnf(inputs,out)
+        out = self.cnf(self.downsample(inputs),out)
 
         return out
 
@@ -106,7 +110,7 @@ class IDQASpikingRepVGGBlock(nn.Module):
 
 class IDQASpikingRepVGG(nn.Module):
 
-    def __init__(self, num_blocks, num_classes=1000, width_multiplier=None, override_groups_map=None, deploy=False, use_checkpoint=False, cnf=None, spiking_neuron=None, zero_init_residual=False, **kwargs):
+    def __init__(self, num_blocks, num_classes=1000, width_multiplier=None, override_groups_map=None, deploy=False, use_checkpoint=False, cnf=None, spiking_neuron=None, zero_init_residual=True, **kwargs):
         super(IDQASpikingRepVGG, self).__init__()
         assert len(width_multiplier) == 4
         self.deploy = deploy
