@@ -138,13 +138,13 @@ class StaticSpikingRepVGG(nn.Module):
             for m in self.modules():
                 if isinstance(m, StaticSpikingRepVGGBlock) and m.cnf is not None:
                     if m.rbr_1x1 is not None:
-                        nn.init.constant_(m.rbr_1x1.modules[1].weight,0)
+                        nn.init.constant_(m.rbr_1x1.bn.weight,0)
                         if cnf == 'AND':
-                            nn.init.constant_(m.rbr_1x1.modules[1].bias,1)
+                            nn.init.constant_(m.rbr_1x1.bn.bias,1)
                     if m.rbr_dense is not None:
-                        nn.init.constant_(m.rbr_dense.modules[1].weight,0)
+                        nn.init.constant_(m.rbr_dense.bn.weight,0)
                         if cnf == 'AND':
-                            nn.init.constant_(m.rbr_dense.modules[1].bias,1)
+                            nn.init.constant_(m.rbr_dense.bn.bias,1)
 
     def _make_stage(self, planes, num_blocks, stride, cnf, spiking_neuron, **kwargs):
         sn = spiking_neuron(**deepcopy(kwargs))
