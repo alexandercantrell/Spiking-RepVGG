@@ -23,7 +23,7 @@ class IAND(Function):
     def backward(ctx,grad_output):
         x, y = ctx.saved_tensors
         grad_x = grad_y = None
-        grad_x = (1-y)*grad_output
+        grad_x = (1.-y)*grad_output
         grad_y = -x * grad_output
         return grad_x, grad_y
 
@@ -31,12 +31,12 @@ def fast_iand_cnf(x,y):
     return IAND.apply(x,y)
 
 def nand_cnf(x,y):
-    return 1-x*y
+    return 1.-x*y
 
 class NAND(Function):
     @staticmethod
     def forward(x,y):
-        return 1-x*y
+        return 1.-x*y
     @staticmethod
     def setup_context(ctx,inputs,output):
         x,y = inputs
@@ -67,15 +67,15 @@ class OR(Function):
     def backward(ctx,grad_output):
         x, y = ctx.saved_tensors
         grad_x = grad_y = None
-        grad_x = (1-y) * grad_output
-        grad_y = (1-x) * grad_output
+        grad_x = (1.-y) * grad_output
+        grad_y = (1.-x) * grad_output
         return grad_x, grad_y
 
 def fast_or_cnf(x,y):
     return OR.apply(x,y)    
 
 def nor_cnf(x,y):
-    return 1-(x+y-x*y)
+    return 1.-(x+y-x*y)
 
 class NOR(Function):
     @staticmethod
@@ -89,15 +89,15 @@ class NOR(Function):
     def backward(ctx, grad_output):
         x, y = ctx.saved_tensors
         grad_x = grad_y = None
-        grad_x = (y-1) * grad_output
-        grad_y = (x-1) * grad_output
+        grad_x = (y-1.) * grad_output
+        grad_y = (x-1.) * grad_output
         return grad_x, grad_y
     
 def fast_nor_cnf(x,y):
     return NOR.apply(x,y)
 
 def xor_cnf(x,y):
-    return x+y-(2*x*y)
+    return x+y-(2.*x*y)
 
 class XOR(Function):
     @staticmethod
@@ -132,12 +132,12 @@ def weighted_xor_cnf(x,y):
     return WeightedXOR.apply(x,y)
 
 def xnor_cnf(x,y):
-    return 1-(x+y-(2*x*y))
+    return 1.-(x+y-(2.*x*y))
 
 class XNOR(Function):
     @staticmethod
     def forward(x,y):
-        return 1-((x+y)%2)
+        return 1.-((x+y)%2)
     @staticmethod
     def setup_context(ctx,inputs,output):
         x, y = inputs
