@@ -80,7 +80,7 @@ Section('data', 'data related stuff').params(
 )
 
 Section('lr','lr scheduling').params(
-    lr=Param(float,'',default=0.5),
+    lr=Param(float,'',default=0.1),
     scheduler=Param(And(str,OneOf(['step','cosa'])),'',default='cosa'),
     warmup_epochs=Param(int,'',default=5)
 )
@@ -122,7 +122,7 @@ Section('criterion','criterion hyper params').params(
 Section('training', 'training hyper param stuff').params(
     crop_size=Param(int,'Size to crop training images to',default=176),
     batch_size=Param(int, 'The training batch size', default=512),
-    epochs=Param(int, 'number of epochs', default=90),
+    epochs=Param(int, 'number of epochs', default=200),
 )
 
 Section('dist', 'distributed training options').params(
