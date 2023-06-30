@@ -66,11 +66,11 @@ Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
     fast_atan=Param(bool,'surrogate',is_flag=True),
     atan_alpha=Param(float,'atan alpha',default=2.0),
-    zero_init=Param(bool,'initialize all weights to zero',is_flag=True),
+    zero_init=Param(bool,'initialize all weights to zero',is_flag=True),#TODO: add zero_init in model creation
     cnf = Param(str,'cnf',default='FAST_XOR'),
     cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     resume = Param(str,'checkpoint to load from',default=None)
-)
+)#TODO: add checkopinting to backprop
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
     sync_bn = Param(bool,'enable batch norm syncing when in distributed mode',is_flag=True),
@@ -399,6 +399,7 @@ class Trainer:
                 for stat in ['loss','top_1','top_5']:
                     self.tb_writer.add_scalar(f'val_{stat}',val_stats[stat],epoch)
                 self.save_latest(epoch)
+                self.save_checkpoint(epoch,is_best=False)
                 if self.max_accuracy == val_stats['top_1']:
                     self.save_checkpoint(epoch,is_best=True)
 
