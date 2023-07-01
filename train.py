@@ -127,7 +127,7 @@ Section('criterion','criterion hyper params').params(
 Section('training', 'training hyper param stuff').params(
     crop_size=Param(int,'Size to crop training images to',default=176),
     batch_size=Param(int, 'The training batch size', default=256),
-    epochs=Param(int, 'number of epochs', default=200),
+    epochs=Param(int, 'number of epochs', default=120),
 )
 
 Section('dist', 'distributed training options').params(
