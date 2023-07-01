@@ -110,14 +110,14 @@ Section('logging', 'how to log stuff').params(
 Section('validation', 'Validation parameters stuff').params(
     resize_size=Param(int,'Size to resize validation images to before cropping',default=256),
     crop_size=Param(int,'Size to crop valdiation images to',default=224),
-    batch_size=Param(int, 'The validation batch size for validation', default=512),
+    batch_size=Param(int, 'The validation batch size for validation', default=256),
     lr_tta=Param(bool, 'should do lr flipping/avging at test time', is_flag=True),
     eval_only=Param(bool,'only perform evaluation',is_flag=True)
 )
 
 Section('optim','optimizer hyper params').params(
     momentum=Param(float, 'SGD momentum', default=0.9),
-    weight_decay=Param(float, 'weight decay', default=4e-5),
+    weight_decay=Param(float, 'weight decay', default=1e-4),
 )
 
 Section('criterion','criterion hyper params').params(
@@ -126,7 +126,7 @@ Section('criterion','criterion hyper params').params(
 
 Section('training', 'training hyper param stuff').params(
     crop_size=Param(int,'Size to crop training images to',default=176),
-    batch_size=Param(int, 'The training batch size', default=512),
+    batch_size=Param(int, 'The training batch size', default=256),
     epochs=Param(int, 'number of epochs', default=200),
 )
 
@@ -316,8 +316,11 @@ class Trainer:
 
         # Only do weight decay on non-batchnorm parameters
         all_params = list(self.model.named_parameters())
+        print(f"Total number of parameters: {len(all_params)}")
         bn_params = [v for k, v in all_params if ('bn' in k)]
+        print(f"Number of batchnorm parameters: {len(bn_params)}")
         other_params = [v for k, v in all_params if not ('bn' in k)]
+        print(f"Number of non-batchnorm parameters: {len(other_params)}")
         param_groups = [{
             'params': bn_params,
             'weight_decay': 0.
