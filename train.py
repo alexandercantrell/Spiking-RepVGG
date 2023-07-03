@@ -34,6 +34,7 @@ from models.surrogate import FastATan
 from models.spiking_repvgg import get_SpikingRepVGG_func_by_name
 from models.hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
+from models.qaspiking_repvgg import get_QASpikingRepVGG_func_by_name
 
 from spikingjelly.activation_based import surrogate, neuron, functional
 
@@ -278,7 +279,10 @@ class Trainer:
         surrogate_function = surrogate.ATan(alpha=atan_alpha)
         if fast_atan:
             surrogate_function = FastATan(alpha=atan_alpha/2.0)
-        if 'StaticSpikingRepVGG' in arch:
+        if 'QASpikingRepVGG' in arch:
+             model = get_QASpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
+                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+        elif 'StaticSpikingRepVGG' in arch:
             model = get_StaticSpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
                             cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
         elif 'HybridSpikingRepVGG' in arch:
