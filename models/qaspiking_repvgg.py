@@ -29,7 +29,7 @@ class QASpikingRepVGGBlock(nn.Module):
         assert padding == 1
 
         padding_11 = padding - kernel_size // 2
-        self.bn = nn.BatchNorm2d(out_channels)
+        self.bn = layer.BatchNorm2d(out_channels)
         if deploy:
             self.rbr_reparam = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
                                       padding=padding, dilation=dilation, groups=groups, bias=True, padding_mode=padding_mode)
