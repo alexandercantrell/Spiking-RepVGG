@@ -36,7 +36,7 @@ class QASpikingRepVGGBlock(nn.Module):
 
         else:
             self.rbr_dense = conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, groups=groups)
-            self.rbr_1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, groups=groups, bias=False,padding=padding_11)
+            self.rbr_1x1 = layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, groups=groups, bias=False,padding=padding_11)
 
         if (out_channels == in_channels and stride == 1):
             self.cnf = ConnectingFunction(cnf)
