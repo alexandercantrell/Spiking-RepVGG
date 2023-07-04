@@ -24,7 +24,7 @@ class IDQASpikingRepVGGBlock(nn.Module):
         self.deploy = deploy
         self.groups = groups
         self.in_channels = in_channels
-        self.downsample_block = not (out_channels==in_channels and stride==1)
+        self.is_downsample = not (out_channels==in_channels and stride==1)
 
         assert kernel_size == 3
         assert padding == 1
@@ -33,16 +33,23 @@ class IDQASpikingRepVGGBlock(nn.Module):
         if deploy:
             self.rbr_reparam = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
                                       padding=padding, dilation=dilation, groups=groups, bias=True, padding_mode=padding_mode)
+            if self.is_downsample:
+                self.identity = nn.Sequential()
+                self.identity.add_module('conv', layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride,padding=padding_11, groups=groups))
+                self.identity.add_module('sn', spiking_neuron(**deepcopy(kwargs)))
+            else:
+                self.identity = nn.Identity()
         else:
             self.rbr_dense = conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, groups=groups)
-            self.rbr_1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, groups=groups, bias=False,padding=padding_11)
+            self.rbr_1x1 = layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, groups=groups, bias=False,padding=padding_11)
+            if self.is_downsample:
+                self.identity = nn.Sequential()
+                self.identity.add_module('conv', conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, padding=padding_11, groups=groups))
+                self.identity.add_module('sn', spiking_neuron(**deepcopy(kwargs)))
+            else:
+                self.identity = nn.Identity()
 
-        if self.downsample_block:#TODO: fix for deploy
-            self.downsample=conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, padding=padding_11, groups=groups)
-        else:
-            self.downsample=nn.Identity()
-
-        self.bn = nn.BatchNorm2d(out_channels)
+        self.bn = layer.BatchNorm2d(out_channels)
         self.sn = spiking_neuron(**deepcopy(kwargs))
         self.cnf = ConnectingFunction(cnf)
 
@@ -55,7 +62,7 @@ class IDQASpikingRepVGGBlock(nn.Module):
         else:
             out = self.sn(self.bn(self.rbr_dense(inputs) + self.rbr_1x1(inputs)))
 
-        out = self.cnf(self.downsample(inputs),out)
+        out = self.cnf(self.identity(inputs),out)
 
         return out
 
@@ -100,6 +107,16 @@ class IDQASpikingRepVGGBlock(nn.Module):
                                      padding=self.rbr_dense.conv.padding, dilation=self.rbr_dense.conv.dilation, groups=self.rbr_dense.conv.groups, bias=True)
         self.rbr_reparam.weight.data = kernel
         self.rbr_reparam.bias.data = bias
+        if self.is_downsample:
+            sn = deepcopy(self.identity.sn)
+            kernel, bias = self._fuse_bn_tensor(self.identity.conv)
+            self.identity = nn.Sequential()
+            self.identity.add_module('conv', layer.Conv2d(in_channels=self.identity.conv.in_channels, out_channels=self.identity.conv.out_channels,
+                                    kernel_size=self.identity.conv.kernel_size, stride=self.identity.conv.stride,padding=self.identity.conv.padding, 
+                                    dilation=self.identity.conv.dilation, groups=self.identity.conv.groups, bias=True))
+            self.identity.add_module('sn', sn)
+            self.identity.conv.weight.data = kernel
+            self.identity.conv.bias.data = bias
         for para in self.parameters():
             para.detach_()
         self.__delattr__('rbr_dense')

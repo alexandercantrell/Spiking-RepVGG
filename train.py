@@ -35,6 +35,8 @@ from models.spiking_repvgg import get_SpikingRepVGG_func_by_name
 from models.hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
 from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
 from models.qaspiking_repvgg import get_QASpikingRepVGG_func_by_name
+from models.idqaspiking_repvgg import get_IDQASpikingRepVGG_func_by_name
+from models.idspiking_repvgg import get_IDSpikingRepVGG_func_by_name
 
 from spikingjelly.activation_based import surrogate, neuron, functional
 
@@ -279,14 +281,21 @@ class Trainer:
         surrogate_function = surrogate.ATan(alpha=atan_alpha)
         if fast_atan:
             surrogate_function = FastATan(alpha=atan_alpha/2.0)
-        if 'QASpikingRepVGG' in arch:
-             model = get_QASpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
-        elif 'StaticSpikingRepVGG' in arch:
+        
+        if 'StaticSpikingRepVGG' in arch:
             model = get_StaticSpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
                             cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
         elif 'HybridSpikingRepVGG' in arch:
             model = get_HybridSpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
+                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+        elif 'IDSpikingRepVGG' in arch:
+            model = get_IDSpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
+                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+        elif 'IDQAStaticSpikingRepVGG' in arch:
+            model = get_IDQASpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
+                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+        elif 'QASpikingRepVGG' in arch:
+             model = get_QASpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
                             cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
         elif 'SpikingRepVGG' in arch:
             model = get_SpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,

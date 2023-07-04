@@ -1,4 +1,4 @@
-SpikingRepVGG-A0 -> ADD (1e-4 vs 0 weight decay, .1 vs .2 lr)
+SpikingRepVGG-A0 -> ADD (1e-4 vs 0 weight decay)
 QASpikingRepVGG-A0 -> ADD 
 ID version of best -> ADD 
 best -> NOR 
