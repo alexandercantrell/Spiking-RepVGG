@@ -30,13 +30,8 @@ from ffcv.fields.rgb_image import CenterCropRGBImageDecoder, \
     RandomResizedCropRGBImageDecoder
 from ffcv.fields.basics import IntDecoder
 
-from models.surrogate import FastATan
-from models.spiking_repvgg import get_SpikingRepVGG_func_by_name
-from models.hybrid_spiking_repvgg import get_HybridSpikingRepVGG_func_by_name
-from models.static_spiking_repvgg import get_StaticSpikingRepVGG_func_by_name
-from models.qaspiking_repvgg import get_QASpikingRepVGG_func_by_name
-from models.idqaspiking_repvgg import get_IDQASpikingRepVGG_func_by_name
-from models.idspiking_repvgg import get_IDSpikingRepVGG_func_by_name
+from nn.models import get_model_func_by_name
+from nn.surrogate import FastATan
 
 from spikingjelly.activation_based import surrogate, neuron, functional
 
@@ -67,13 +62,15 @@ DATASET_NUM_CLASSES = {
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
+    block=Param(str, 'model block', required=True),
     fast_atan=Param(bool,'surrogate',is_flag=True),
     atan_alpha=Param(float,'atan alpha',default=2.0),
-    zero_init=Param(bool,'initialize all weights to zero',is_flag=True),#TODO: add zero_init in model creation
+    zero_init_residual=Param(bool,'initialize all weights to zero',is_flag=True),#TODO: add zero_init_residual in model creation
     cnf = Param(str,'cnf',default='FAST_XOR'),
     cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
-    resume = Param(str,'checkpoint to load from',default=None)
-)#TODO: add checkopinting to backprop
+    resume = Param(str,'checkpoint to load from',default=None),
+    reuse_neurons = Param(bool,'reuse neurons',is_flag=True)
+)
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
     sync_bn = Param(bool,'enable batch norm syncing when in distributed mode',is_flag=True),
@@ -268,38 +265,29 @@ class Trainer:
         return loader
 
     @param('model.arch')
+    @param('model.block')
     @param('model.fast_atan')
     @param('model.atan_alpha')
     @param('model.cnf')
-    @param('model.zero_init') #TODO: implement
+    @param('model.zero_init_residual') #TODO: implement
     @param('model.cupy')
     @param('data.T')
     @param('dist.distributed')
+    @param('model.reuse_neurons')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, fast_atan, atan_alpha, cnf, zero_init, cupy, T, distributed, sync_bn=None):
+    def create_model_and_scaler(self, arch, block, fast_atan, atan_alpha, cnf, zero_init_residual, cupy, T, distributed, reuse_neurons=False, sync_bn=None):
         scaler = GradScaler()
         surrogate_function = surrogate.ATan(alpha=atan_alpha)
         if fast_atan:
             surrogate_function = FastATan(alpha=atan_alpha/2.0)
-        
-        if 'StaticSpikingRepVGG' in arch:
-            model = get_StaticSpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
-        elif 'HybridSpikingRepVGG' in arch:
-            model = get_HybridSpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
-        elif 'IDSpikingRepVGG' in arch:
-            model = get_IDSpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
-        elif 'IDQAStaticSpikingRepVGG' in arch:
-            model = get_IDQASpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
-        elif 'QASpikingRepVGG' in arch:
-             model = get_QASpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
-        elif 'SpikingRepVGG' in arch:
-            model = get_SpikingRepVGG_func_by_name(arch)(num_classes=self.num_classes,deploy=False,use_checkpoint=False,
-                            cnf=cnf,spiking_neuron=neuron.IFNode,surrogate_function=surrogate_function,detach_reset=True)
+        if 'Spiking' in arch:
+            model = get_model_func_by_name(arch)(block=block,num_classes=self.num_classes,deploy=False,spiking_neuron=neuron.IFNode,
+                                                 reuse_neurons=reuse_neurons,zero_init_residual=zero_init_residual,
+                                                 surrogate_function=surrogate_function,detach_reset=True)
+        elif 'SEW' in arch:
+            model = get_model_func_by_name(arch)(block=block,num_classes=self.num_classes,deploy=False,cnf=cnf,spiking_neuron=neuron.IFNode,
+                                                 reuse_neurons=reuse_neurons,zero_init_residual=zero_init_residual,
+                                                 surrogate_function=surrogate_function,detach_reset=True)
         else:
             raise ValueError(f"Model architecture {arch} does not exist!")
         
@@ -498,9 +486,11 @@ class Trainer:
     @param('logging.folder')
     @param('logging.tag')
     @param('model.arch')
+    @param('model.block')
     @param('model.cnf')
+    @param('model.reuse_neurons')
     @param('logging.clean')
-    def initialize_logger(self, folder, tag, arch, cnf,clean=None):
+    def initialize_logger(self, folder, tag, arch, block, cnf, reuse_neurons=False, clean=None):
         self.meters = {
             'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False).to(self.gpu),
             'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False, top_k=5).to(self.gpu),
@@ -509,7 +499,10 @@ class Trainer:
         }
 
         if self.gpu == 0:
-            folder = os.path.join(folder,arch,f'{tag}_{cnf}')
+            arch_block = f'{arch}_{block}' 
+            if reuse_neurons:
+                arch_block = f'{arch_block}_reuse'
+            folder = os.path.join(folder,arch_block,f'{tag}_{cnf}')
             if os.path.exists(folder) and clean:
                 shutil.rmtree(folder)
             os.makedirs(folder,exist_ok=True)
