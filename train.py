@@ -65,8 +65,8 @@ Section('model', 'model details').params(
     block=Param(str, 'model block', required=True),
     fast_atan=Param(bool,'surrogate',is_flag=True),
     atan_alpha=Param(float,'atan alpha',default=2.0),
-    zero_init_residual=Param(bool,'initialize all weights to zero',is_flag=True),#TODO: add zero_init_residual in model creation
-    cnf = Param(str,'cnf',default='FAST_XOR'),
+    zero_init_residual=Param(bool,'initialize all weights to zero',is_flag=True),
+    cnf = Param(str,'cnf',default='ADD'),
     cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     resume = Param(str,'checkpoint to load from',default=None),
     reuse_neurons = Param(bool,'reuse neurons',is_flag=True)
@@ -117,7 +117,7 @@ Section('validation', 'Validation parameters stuff').params(
 
 Section('optim','optimizer hyper params').params(
     momentum=Param(float, 'SGD momentum', default=0.9),
-    weight_decay=Param(float, 'weight decay', default=1e-4),
+    weight_decay=Param(float, 'weight decay', default=0.0),
 )
 
 Section('criterion','criterion hyper params').params(
@@ -269,7 +269,7 @@ class Trainer:
     @param('model.fast_atan')
     @param('model.atan_alpha')
     @param('model.cnf')
-    @param('model.zero_init_residual') #TODO: implement
+    @param('model.zero_init_residual')
     @param('model.cupy')
     @param('data.T')
     @param('dist.distributed')
