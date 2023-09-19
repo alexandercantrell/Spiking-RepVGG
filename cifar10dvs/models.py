@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from spikingjelly.activation_based import layer, neuron, surrogate
-from ..connecting_functions import ConnectingFunction
+from connecting_functions import ConnectingFunction
 
 def conv_bn(in_channels, out_channels, kernel_size, stride, padding, padding_mode='zeros', groups=1):
     result = nn.Sequential()
