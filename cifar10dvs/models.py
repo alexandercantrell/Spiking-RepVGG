@@ -62,7 +62,7 @@ class SpikingRepVGGN(nn.Module):
             block = get_block(cfg_dict['block'])
 
             if channels != in_channels:
-                conv.append(block(in_channels, channels, stride=1, cnf=cnf))
+                conv.append(block(in_channels, channels, stride=1, cnf=None))
             in_channels = channels
 
             for _ in range(cfg_dict['num_blocks']):
