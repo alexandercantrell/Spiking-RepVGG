@@ -70,7 +70,7 @@ class SpikingRepVGGN(nn.Module):
             
             if 'k_pool' in cfg_dict:
                 k_pool = cfg_dict['k_pool']
-                conv.append(nn.MaxPool2d(k_pool,k_pool))
+                conv.append(layer.MaxPool2d(k_pool,k_pool))
 
         conv.append(nn.Flatten(2))
         self.conv = nn.Sequential(*conv)
