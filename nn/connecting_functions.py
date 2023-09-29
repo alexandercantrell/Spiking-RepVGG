@@ -174,8 +174,11 @@ CONNECTING_FUNCTIONS={
 class ConnectingFunction(nn.Module):
     def __init__(self,cnf):
         super(ConnectingFunction,self).__init__()
+        cnf = cnf.upper()
         if cnf not in CONNECTING_FUNCTIONS.keys():
             raise NotImplementedError(f'{cnf} is a connecting function that has not been implemented.')
         self.cnf=CONNECTING_FUNCTIONS[cnf]
     def forward(self,x,y):
         return self.cnf(x,y)
+    def __repr__(self):
+        return f'ConnectingFunction({self.cnf.__name__})'
