@@ -65,13 +65,15 @@ class SpikeRVGGNet(nn.Module):
 
         self.convs = convs
 
-        with torch.no_grad():
-            x = torch.zeros([1, 1, 128, 128])
-            for m in self.in_layer.modules():
-                x = m(x)
-            for m in self.convs.modules():
-                x = m(x)
-            out_features = x.numel() * in_channels
+        x=y=128
+        for layer_dict in layer_list:
+            if isinstance(layer_dict['stride'], tuple):
+                x = x // layer_dict['stride'][0]
+                y = y // layer_dict['stride'][1]
+            else:
+                x = x // layer_dict['stride']
+                y = y // layer_dict['stride']
+        out_features = x * y * in_channels
 
         self.out = layer.Linear(out_features, num_classes, bias=True)
 
