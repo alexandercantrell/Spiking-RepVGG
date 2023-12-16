@@ -99,9 +99,9 @@ def SpikingRVGGNet(num_classes):
             {'channels': 64, 'num_blocks': 2, 'stride': 2},#64->32
             {'channels': 64, 'num_blocks': 3, 'stride': 2},#32->16
             {'channels': 64, 'num_blocks': 3, 'stride': 2},#16->8
-            {'channels': 64, 'num_blocks': 3, 'stride': 2},#8->4
-            {'channels': 64, 'num_blocks': 3, 'stride': 2},#4->2
-            {'channels': 64, 'num_blocks': 1, 'stride': 2},
+            {'channels': 128, 'num_blocks': 3, 'stride': 2},#8->4
+            {'channels': 128, 'num_blocks': 3, 'stride': 2},#4->2
+            {'channels': 128, 'num_blocks': 1, 'stride': 2},
         ],
         'block_type': 'spike',
     }
@@ -114,9 +114,9 @@ def SpikingConnRVGGNet(num_classes):
             {'channels': 64, 'num_blocks': 2, 'stride': 2},#64->32
             {'channels': 64, 'num_blocks': 3, 'stride': 2},#32->16
             {'channels': 64, 'num_blocks': 3, 'stride': 2},#16->8
-            {'channels': 64, 'num_blocks': 3, 'stride': 2},#8->4
-            {'channels': 64, 'num_blocks': 3, 'stride': 2},#4->2
-            {'channels': 64, 'num_blocks': 1, 'stride': 2},
+            {'channels': 128, 'num_blocks': 3, 'stride': 2},#8->4
+            {'channels': 128, 'num_blocks': 3, 'stride': 2},#4->2
+            {'channels': 128, 'num_blocks': 1, 'stride': 2},
         ],
         'block_type': 'conn',
     }
