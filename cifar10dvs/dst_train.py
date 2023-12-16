@@ -7,6 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torchmetrics
 import numpy as np
 from tqdm import tqdm
+import math
 
 import shutil
 
@@ -20,10 +21,11 @@ from fastargs.decorators import param
 from fastargs import Param, Section
 from fastargs.validation import And, OneOf
 
-from models import get_model_by_name
+from dst_models import get_model_by_name
 
 from spikingjelly.activation_based import neuron, functional
-from spikingjelly.datasets import dvs128_gesture
+from spikingjelly.datasets import cifar10_dvs
+import connecting_neuron
 
 SEED=2020
 import random
@@ -36,8 +38,8 @@ np.random.seed(SEED)
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
-    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     resume = Param(str,'checkpoint to load from',default=None),
+    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     cnf = Param(str,'cnf',default='ADD')
 )
 
@@ -49,12 +51,13 @@ Section('data', 'data related stuff').params(
     path = Param(str,'path to dataset folder',required=True),
     T=Param(int,'T',default=16),
     num_workers=Param(int, 'The number of workers', default=4),
+    train_ratio=Param(float, 'The ratio of training set', default=0.9),
+    random_split=Param(bool, 'Whether to use random split', is_flag=True),
 )
 
 Section('lr','lr scheduling').params(
-    lr=Param(float,'',default=0.1),
-    gamma=Param(float,'',default=0.1),
-    step_size=Param(int,'',default=64),
+    lr=Param(float,'',default=0.01),
+    eta_min=Param(float,'',default=0.0)
 ) 
 
 Section('logging', 'how to log stuff').params(
@@ -75,8 +78,7 @@ Section('optim','optimizer hyper params').params(
 
 Section('training', 'training hyper param stuff').params(
     batch_size=Param(int, 'The training batch size', default=16),
-    T_train = Param(int,'T_train',default=None),
-    epochs=Param(int, 'number of epochs', default=192),
+    epochs=Param(int, 'number of epochs', default=64),
 )
 
 Section('dist', 'distributed training options').params(
@@ -92,19 +94,19 @@ class Trainer:
     def __init__(self, gpu, distributed, resume=None):
         self.all_params = get_current_config()
         self.gpu = gpu
-        self.num_classes = 11
+        self.num_classes = 10
         if distributed:
             self.setup_distributed()
-        self.train_loader = self.create_train_loader()
-        self.val_loader = self.create_val_loader()
+        self.train_loader, self.val_loader = self.create_data_loaders()
         self.model, self.scaler = self.create_model_and_scaler()
-        self.start_epoch=0
+        self.start_epoch = 0
         self.max_accuracy=-1
         if resume is not None:
             self.load_checkpoint()
         self.create_optimizer()
         self.create_scheduler()
         self.initialize_logger()
+    
     @param('dist.address')
     @param('dist.port')
     @param('dist.world_size')
@@ -118,49 +120,60 @@ class Trainer:
     def cleanup_distributed(self):
         dist.destroy_process_group()
 
-    @param('data.path')
-    @param('data.T')
+    @param('data.train_ratio')
+    @param('data.random_split')
+    def _split_train_val(self,dataset,train_ratio, random_split=False):
+        label_idx = [[] for _ in range(self.num_classes)]
+        for idx, item in enumerate(dataset):
+            y = item[1]
+            if isinstance(y, np.ndarray) or isinstance(y,ch.Tensor):
+                y = y.item()
+            label_idx[y].append(idx)
+        train_idx = []
+        val_idx = []
+        if random_split:
+            for idx in range(self.num_classes):
+                np.random.shuffle(label_idx[idx])
+        for idx in range(self.num_classes):
+            pos = math.ceil(label_idx[idx].__len__()*train_ratio)
+            train_idx.extend(label_idx[idx][0:pos])
+            val_idx.extend(label_idx[idx][pos:label_idx[idx].__len__()])
+        return ch.utils.data.Subset(dataset, train_idx), ch.utils.data.Subset(dataset, val_idx)
+
     @param('data.num_workers')
     @param('training.batch_size')
-    @param('dist.distributed')
-    def create_train_loader(self, path, T, num_workers, batch_size,
-                            distributed):
-        dataset = dvs128_gesture.DVS128Gesture(root=path, train=True, data_type='frame',frames_number=T, split_by='number')
-        if distributed:
-            sampler = ch.utils.data.distributed.DistributedSampler(dataset)
-        else:
-            sampler = ch.utils.data.RandomSampler(dataset)
-        loader = ch.utils.data.DataLoader(
-            dataset, 
-            batch_size=batch_size, 
-            sampler=sampler,
+    def _create_train_loader(self, train_set, num_workers, batch_size):
+        train_loader = ch.utils.data.DataLoader(
+            train_set,
+            batch_size=batch_size,
+            shuffle=True,
             num_workers=num_workers,
-            pin_memory=True, 
-            drop_last=True
+            pin_memory=True,
+            drop_last=True,
         )
-        return loader
+        return train_loader
+    
+    @param('data.num_workers')
+    @param('validation.batch_size')
+    def _create_val_loader(self, val_set, num_workers, batch_size):
+        val_loader = ch.utils.data.DataLoader(
+            val_set,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+            drop_last=False,
+        )
+        return val_loader
 
     @param('data.path')
     @param('data.T')
-    @param('data.num_workers')
-    @param('validation.batch_size')
-    @param('dist.distributed')
-    def create_val_loader(self, path, T, num_workers, batch_size, 
-                          distributed):
-        dataset = dvs128_gesture.DVS128Gesture(root=path, train=False, data_type='frame',frames_number=T, split_by='number')
-        if distributed:
-            sampler = ch.utils.data.distributed.DistributedSampler(dataset)
-        else:
-            sampler = ch.utils.data.SequentialSampler(dataset)
-        loader = ch.utils.data.DataLoader(
-            dataset, 
-            batch_size=batch_size, 
-            sampler=sampler,
-            num_workers=num_workers,
-            pin_memory=True, 
-            drop_last=False
-        )
-        return loader
+    def create_data_loaders(self,path,T):
+        dataset = cifar10_dvs.CIFAR10DVS(path, data_type='frame',frames_number=T,split_by='number')
+        train_set, val_set = self._split_train_val(dataset)
+        train_loader = self._create_train_loader(train_set)
+        val_loader = self._create_val_loader(val_set)
+        return train_loader, val_loader
     
     @param('model.arch')
     @param('model.cupy')
@@ -173,10 +186,10 @@ class Trainer:
         arch=arch.lower()
         model = get_model_by_name(arch)(num_classes=self.num_classes,cnf=cnf)
         functional.set_step_mode(model,'m')
-
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
-
+            functional.set_backend(model,'cupy',instance=connecting_neuron.ParaConnLIFNode)
+            functional.set_backend(model,'cupy',instance=connecting_neuron.SpikeParaConnLIFNode)
         model = model.to(self.gpu)
 
         if distributed:
@@ -206,10 +219,10 @@ class Trainer:
         self.optimizer = ch.optim.SGD(param_groups, lr=lr, momentum=momentum)
         self.loss = ch.nn.CrossEntropyLoss()
 
-    @param('lr.step_size')
-    @param('lr.gamma')
-    def create_scheduler(self,step_size,gamma):
-        self.lr_scheduler = ch.optim.lr_scheduler.StepLR(self.optimizer,step_size=step_size,gamma=gamma,last_epoch=self.start_epoch-1)
+    @param('training.epochs')
+    @param('lr.eta_min')
+    def create_scheduler(self,epochs,eta_min):
+        self.lr_scheduler = ch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,T_max=epochs,eta_min=eta_min,last_epoch=self.start_epoch-1)
 
     @param('training.epochs')
     def train(self, epochs):
@@ -248,8 +261,7 @@ class Trainer:
                 val_time=val_time
             ))
 
-    @param('training.T_train')
-    def train_loop(self, T_train=None):
+    def train_loop(self):
         model = self.model
         model.train()
 
@@ -258,19 +270,19 @@ class Trainer:
             self.optimizer.zero_grad(set_to_none=True)
             images = images.to(self.gpu, non_blocking=True).float()
             target = target.to(self.gpu, non_blocking=True)
-            if T_train:
-                sec_list = np.random.choice(images.shape[1],T_train,replace=False)
-                sec_list.sort()
-                images = images[:,sec_list]
             with autocast():
-                output = self.model(images)
-                loss_train = self.loss(output, target)
+                (output, aac) = self.model(images)
+                if self.model.dsnn:
+                    loss_train = self.loss(output, target) + self.loss(aac, target)
+                    output = output+aac
+                    #loss_train = self.loss(output, target)
+                else:
+                    loss_train = self.loss(output, target) + self.loss(aac, target)
             self.scaler.scale(loss_train).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
             functional.reset_net(model)
             end = time.time()
-
             output=output.detach()
             target=target.detach()
             self.meters['top_1'](output,target)
@@ -293,15 +305,18 @@ class Trainer:
                     start = time.time()
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
-                    output = self.model(images)
+                    (output, aac) = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
-
+                    if self.model.dsnn:
+                        loss_val = self.loss(output, target) + self.loss(aac, target)
+                        output = output+aac
+                    else:
+                        loss_val = self.loss(output,target)
                     self.meters['top_1'](output, target)
                     self.meters['top_5'](output, target)
                     batch_size = target.shape[0]
                     self.meters['thru'](ch.tensor(batch_size/(end-start)))
-                    loss_val = self.loss(output, target)
                     self.meters['loss'](loss_val)
 
         stats = {k: m.compute().item() for k, m in self.meters.items()}
@@ -323,7 +338,7 @@ class Trainer:
         }
 
         if self.gpu == 0:
-            folder = os.path.join(folder,'dvsgesture',arch,f'{tag}_{cnf}')
+            folder = os.path.join(folder,'cifar10_dvs',arch,cnf,tag)
             if os.path.exists(folder) and clean:
                 shutil.rmtree(folder)
             os.makedirs(folder,exist_ok=True)

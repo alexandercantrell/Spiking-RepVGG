@@ -1,8 +1,0 @@
-SpikingRepVGG-A0 -> ADD (1e-4 vs 0 weight decay)
-QASpikingRepVGG-A0 -> ADD 
-ID version of best -> ADD 
-best -> NOR 
-best -> XOR 
-best -> XNOR
-StaticSpikingRepVGG-A0 -> best cnf 
-HybridSpikingRepVGG-A0 -> best cnf

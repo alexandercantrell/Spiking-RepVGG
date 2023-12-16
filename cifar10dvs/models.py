@@ -2,146 +2,129 @@ import torch
 import torch.nn as nn
 from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_functions import ConnectingFunction
+from connecting_neuron import ParaConnLIFNode, SpikeParaConnLIFNode
 
-def conv_bn(in_channels, out_channels, kernel_size, stride, padding, padding_mode='zeros', groups=1):
-    result = nn.Sequential()
-    result.add_module('conv', layer.Conv2d(in_channels=in_channels, out_channels=out_channels,
-                                                  kernel_size=kernel_size, stride=stride, padding=padding, padding_mode=padding_mode, groups=groups, bias=False))
-    result.add_module('bn', layer.BatchNorm2d(num_features=out_channels))
-    return result
-
-class SEWRRepVGGBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, cnf=None):
-        super(SEWRRepVGGBlock, self).__init__()
-        self.conv3x3 = conv_bn(in_channels, out_channels, kernel_size=3, stride=stride, padding=1)
-        self.conv1x1 = conv_bn(in_channels, out_channels, kernel_size=1, stride=stride, padding=0)
-        self.sn = neuron.ParametricLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-        self.cnf = None if cnf is None else ConnectingFunction(cnf)
-
-    def forward(self, x):
-        out = self.sn(self.conv3x3(x) + self.conv1x1(x))
-        if self.cnf is not None:
-            out = self.cnf(x,out)
-        return out
-
-class QASEWRepVGGBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride, cnf=None):
-        super(QASEWRepVGGBlock, self).__init__()
-        self.conv3x3 = conv_bn(in_channels, out_channels, kernel_size=3, stride=stride, padding=1)
-        self.conv1x1 = layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, padding=0, bias=False)
+class SpikeBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, stride):
+        super(SpikeBlock, self).__init__()
+        self.identity = stride == 1 and in_channels == out_channels
+        self.conv3x3 = layer.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, stride=stride, bias=False)
+        self.bn3x3 = layer.BatchNorm2d(out_channels)
+        self.conv1x1 = layer.Conv2d(in_channels, out_channels, kernel_size=1, padding=0, stride=stride, bias=False)
         self.bn = layer.BatchNorm2d(out_channels)
         self.sn = neuron.ParametricLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-        self.cnf = None if cnf is None else ConnectingFunction(cnf)
-
-    def forward(self, x):
-        out = self.sn(self.bn(self.conv3x3(x) + self.conv1x1(x)))
-        if self.cnf is not None:
-            out = self.cnf(x,out)
-        return out
-
-def get_block(block):
-    if block == 'sew':
-        return SEWRRepVGGBlock
-    elif block == 'qasew':
-        return QASEWRepVGGBlock
-    else:
-        raise NotImplementedError
-
-class SpikingRepVGGN(nn.Module):
-    def __init__(self, layer_list, num_classes, cnf=None):
-        super(SpikingRepVGGN, self).__init__()
-        in_channels = 2
-        conv = []
-        for cfg_dict in layer_list:
-            channels = cfg_dict['channels']
-            if 'out_channels' in cfg_dict:
-                out_channels = cfg_dict['out_channels']
-            else:
-                out_channels = in_channels
-
-            block = get_block(cfg_dict['block'])
-
-            if channels != in_channels:
-                conv.append(block(in_channels, channels, stride=1, cnf=None))
-            in_channels = channels
-
-            for _ in range(cfg_dict['num_blocks']):
-                conv.append(block(in_channels, out_channels, stride=1, cnf=cnf))
-            
-            if 'k_pool' in cfg_dict:
-                k_pool = cfg_dict['k_pool']
-                conv.append(layer.MaxPool2d(k_pool,k_pool))
-
-        conv.append(nn.Flatten(2))
-        self.conv = nn.Sequential(*conv)
-
-        with torch.no_grad():
-            x = torch.zeros([1,1,128,128])
-            for m in self.conv.modules():
-                if isinstance(m, layer.MaxPool2d):
-                    x = m(x)
-            out_features = x.numel() * in_channels
-        
-        self.out = layer.Linear(out_features, num_classes, bias=True)
 
     def forward(self, x: torch.Tensor):
+        out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
+        if self.identity:
+            out = out + x
+        return self.sn(out)
+    
+class ConnBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, stride):
+        super(ConnBlock, self).__init__()
+        self.identity = stride == 1 and in_channels == out_channels
+        self.conv3x3 = layer.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, stride=stride, bias=False)
+        self.bn3x3 = layer.BatchNorm2d(out_channels)
+        self.conv1x1 = layer.Conv2d(in_channels, out_channels, kernel_size=1, padding=0, stride=stride, bias=False)
+        self.bn = layer.BatchNorm2d(out_channels)
+        if self.identity:
+            self.sn = SpikeParaConnLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        else:
+            self.sn = neuron.ParametricLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+
+    def forward(self, x: torch.Tensor):
+        out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
+        if self.identity:
+            out = self.sn(out, x)
+        else:
+            out = self.sn(out)
+        return out    
+
+class SpikeRVGGNet(nn.Module):
+    def __init__(self, cfg_dict, num_classes):
+        super(SpikeRVGGNet, self).__init__()
+        if cfg_dict['block_type'] == 'spike':
+            self.block = SpikeBlock
+        elif cfg_dict['block_type'] == 'conn':
+            self.block = ConnBlock
+        else:
+            raise NotImplementedError
+        
+        in_channels = 2
+        layer_list = cfg_dict['layers']
+        self.in_layer = self._build_layer(in_channels, layer_list[0])
+        in_channels = layer_list[0]['channels']
+        
+        convs = nn.ModuleList()
+        for layer_dict in layer_list[1:]:
+            convs.extend(self._build_layer(in_channels, layer_dict))
+            in_channels = layer_dict['channels']
+        
+        convs.append(nn.Flatten(2))
+
+        self.convs = convs
+
+        with torch.no_grad():
+            x = torch.zeros([1, 1, 128, 128])
+            for m in self.in_layer.modules():
+                x = m(x)
+            for m in self.convs.modules():
+                x = m(x)
+            out_features = x.numel() * in_channels
+
+        self.out = layer.Linear(out_features, num_classes, bias=True)
+
+    def _build_layer(self, in_channels, layer_dict):
+        channels = layer_dict['channels']
+        stride = layer_dict['stride']
+        convs = nn.ModuleList()
+        convs.append(self.block(in_channels, channels, stride))
+        for _ in range(layer_dict['num_blocks'] - 1):
+            convs.append(self.block(channels, channels, 1))
+        return convs
+    
+    def forward(self, x: torch.Tensor):
         x = x.permute(1,0,2,3,4)
-        x = self.conv(x)
+        for conv in self.in_layer:
+            x = conv(x)
+        for conv in self.convs:
+            x = conv(x)
         return self.out(x.mean(0))
+    
+def SpikingRVGGNet(num_classes):
+    cfg_dict = {
+        'layers': [
+            {'channels': 64, 'num_blocks': 1, 'stride': 2},#128->64
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},#64->32
+            {'channels': 64, 'num_blocks': 3, 'stride': 2},#32->16
+            {'channels': 64, 'num_blocks': 3, 'stride': 2},#16->8
+            {'channels': 64, 'num_blocks': 3, 'stride': 2},#8->4
+            {'channels': 64, 'num_blocks': 3, 'stride': 2},#4->2
+            {'channels': 64, 'num_blocks': 1, 'stride': 2},
+        ],
+        'block_type': 'spike',
+    }
+    return SpikeRVGGNet(cfg_dict, num_classes)
 
-def SEWRepVGG(num_classes, cnf):
-    layer_list = [
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 2, 'block': 'sew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 2, 'block': 'sew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 2, 'block': 'sew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 2, 'block': 'sew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 2, 'block': 'sew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 2, 'block': 'sew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 2, 'block': 'sew', 'k_pool': 2},
-    ]  
-    return SpikingRepVGGN(layer_list, num_classes, cnf)
-
-def QASEWRepVGG(num_classes, cnf):
-    layer_list = [
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 2, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 2, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 2, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 2, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 2, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 2, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 2, 'block': 'qasew', 'k_pool': 2},
-    ]
-    return SpikingRepVGGN(layer_list, num_classes, cnf)
-
-def SEWRepVGGH(num_classes, cnf):
-    layer_list = [
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 1, 'block': 'sew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 1, 'block': 'sew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 1, 'block': 'sew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 1, 'block': 'sew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 1, 'block': 'sew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 1, 'block': 'sew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 1, 'block': 'sew', 'k_pool': 2},
-    ]  
-    return SpikingRepVGGN(layer_list, num_classes, cnf)
-
-def QASEWRepVGGH(num_classes, cnf):
-    layer_list = [
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 1, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 1, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 1, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 64, 'out_channels': 64, 'num_blocks': 1, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 1, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 1, 'block': 'qasew', 'k_pool': 2},
-        {'channels': 128, 'out_channels': 128, 'num_blocks': 1, 'block': 'qasew', 'k_pool': 2},
-    ]
-    return SpikingRepVGGN(layer_list, num_classes, cnf)
+def SpikingConnRVGGNet(num_classes):
+    cfg_dict = {
+        'layers': [
+            {'channels': 64, 'num_blocks': 1, 'stride': 2},#128->64
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},#64->32
+            {'channels': 64, 'num_blocks': 3, 'stride': 2},#32->16
+            {'channels': 64, 'num_blocks': 3, 'stride': 2},#16->8
+            {'channels': 64, 'num_blocks': 3, 'stride': 2},#8->4
+            {'channels': 64, 'num_blocks': 3, 'stride': 2},#4->2
+            {'channels': 64, 'num_blocks': 1, 'stride': 2},
+        ],
+        'block_type': 'conn',
+    }
+    return SpikeRVGGNet(cfg_dict, num_classes)
 
 model_dict = {
-    'sew': SEWRepVGG,
-    'qasew': QASEWRepVGG,
-    'sewh': SEWRepVGGH,
-    'qasewh': QASEWRepVGGH,
+    'spiking': SpikingRVGGNet,
+    'spikingconn': SpikingConnRVGGNet,
 }
 
 def get_model_by_name(name):

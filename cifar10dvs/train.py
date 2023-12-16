@@ -26,6 +26,8 @@ from models import get_model_by_name
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import cifar10_dvs
 
+import connecting_neuron
+
 SEED=2020
 import random
 random.seed(SEED)
@@ -37,8 +39,8 @@ np.random.seed(SEED)
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
-    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     resume = Param(str,'checkpoint to load from',default=None),
+    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     cnf = Param(str,'cnf',default='ADD')
 )
 
@@ -55,7 +57,7 @@ Section('data', 'data related stuff').params(
 )
 
 Section('lr','lr scheduling').params(
-    lr=Param(float,'',default=0.1),
+    lr=Param(float,'',default=0.01),
     eta_min=Param(float,'',default=0.0)
 ) 
 
@@ -141,16 +143,11 @@ class Trainer:
 
     @param('data.num_workers')
     @param('training.batch_size')
-    @param('dist.distributed')
-    def _create_train_loader(self, train_set, num_workers, batch_size, distributed):
-        if distributed:
-            train_sampler = ch.utils.data.distributed.DistributedSampler(train_set)
-        else:
-            train_sampler = ch.utils.data.RandomSampler(train_set)
+    def _create_train_loader(self, train_set, num_workers, batch_size):
         train_loader = ch.utils.data.DataLoader(
             train_set,
             batch_size=batch_size,
-            sampler=train_sampler,
+            shuffle=True,
             num_workers=num_workers,
             pin_memory=True,
             drop_last=True,
@@ -159,16 +156,11 @@ class Trainer:
     
     @param('data.num_workers')
     @param('validation.batch_size')
-    @param('dist.distributed')
-    def _create_val_loader(self, val_set, num_workers, batch_size, distributed):
-        if distributed:
-            val_sampler = ch.utils.data.distributed.DistributedSampler(val_set)
-        else:
-            val_sampler = ch.utils.data.SequentialSampler(val_set)
+    def _create_val_loader(self, val_set, num_workers, batch_size):
         val_loader = ch.utils.data.DataLoader(
             val_set,
             batch_size=batch_size,
-            sampler=val_sampler,
+            shuffle=False,
             num_workers=num_workers,
             pin_memory=True,
             drop_last=False,
@@ -195,9 +187,10 @@ class Trainer:
         arch=arch.lower()
         model = get_model_by_name(arch)(num_classes=self.num_classes,cnf=cnf)
         functional.set_step_mode(model,'m')
-
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
+            functional.set_backend(model,'cupy',instance=connecting_neuron.ParaConnLIFNode)
+            functional.set_backend(model,'cupy',instance=connecting_neuron.SpikeParaConnLIFNode)
 
         model = model.to(self.gpu)
 
@@ -340,7 +333,7 @@ class Trainer:
         }
 
         if self.gpu == 0:
-            folder = os.path.join(folder,'cifar10_dvs',arch,f'{tag}_{cnf}')
+            folder = os.path.join(folder,'cifar10_dvs',arch,cnf,tag)
             if os.path.exists(folder) and clean:
                 shutil.rmtree(folder)
             os.makedirs(folder,exist_ok=True)
