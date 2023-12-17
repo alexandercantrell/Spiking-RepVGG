@@ -40,7 +40,6 @@ Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
     resume = Param(str,'checkpoint to load from',default=None),
     cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
-    cnf = Param(str,'cnf',default='ADD')
 )
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
@@ -178,13 +177,12 @@ class Trainer:
     @param('model.arch')
     @param('model.cupy')
     @param('dist.distributed')
-    @param('model.cnf')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, cupy, distributed, cnf=None, sync_bn=None):
+    def create_model_and_scaler(self, arch, cupy, distributed,  sync_bn=None):
         scaler = GradScaler()
         
         arch=arch.lower()
-        model = get_model_by_name(arch)(num_classes=self.num_classes,cnf=cnf)
+        model = get_model_by_name(arch)(num_classes=self.num_classes)
         functional.set_step_mode(model,'m')
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
@@ -327,9 +325,8 @@ class Trainer:
     @param('logging.tag')
     @param('model.arch')
     @param('lr.lr')
-    @param('model.cnf')
     @param('logging.clean')
-    def initialize_logger(self, folder, tag, arch, lr, cnf,clean=None):
+    def initialize_logger(self, folder, tag, arch, lr,clean=None):
         self.meters = {
             'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False).to(self.gpu),
             'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False, top_k=5).to(self.gpu),
@@ -338,7 +335,7 @@ class Trainer:
         }
 
         if self.gpu == 0:
-            folder = os.path.join(folder,'cifar10_dvs',arch,cnf,tag)
+            folder = os.path.join(folder,'cifar10_dvs',arch,tag)
             if os.path.exists(folder) and clean:
                 shutil.rmtree(folder)
             os.makedirs(folder,exist_ok=True)

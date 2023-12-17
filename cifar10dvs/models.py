@@ -94,6 +94,40 @@ class SpikeRVGGNet(nn.Module):
             x = conv(x)
         return self.out(x.mean(0))
     
+def Spiking7BNet(num_classes):
+    cfg_dict = {
+        'layers': [
+            {'channels': 64, 'num_blocks': 1, 'stride': 1},
+            {'channels': 64, 'num_blocks': 2, 'stride': 1},
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},
+            {'channels': 128, 'num_blocks': 2, 'stride': 2},
+            {'channels': 128, 'num_blocks': 2, 'stride': 2},
+            {'channels': 128, 'num_blocks': 2, 'stride': 2},
+            {'channels': 128, 'num_blocks': 1, 'stride': 2}
+        ],
+        'block_type': 'spike',
+    }
+    return SpikeRVGGNet(cfg_dict, num_classes)
+
+def SpikingConn7BNet(num_classes):
+    cfg_dict = {
+        'layers': [
+            {'channels': 64, 'num_blocks': 1, 'stride': 1},
+            {'channels': 64, 'num_blocks': 2, 'stride': 1},
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},
+            {'channels': 128, 'num_blocks': 2, 'stride': 2},
+            {'channels': 128, 'num_blocks': 2, 'stride': 2},
+            {'channels': 128, 'num_blocks': 2, 'stride': 2},
+            {'channels': 128, 'num_blocks': 1, 'stride': 2}
+        ],
+        'block_type': 'conn',
+    }
+    return SpikeRVGGNet(cfg_dict, num_classes)
+
 def SpikingRVGGNet(num_classes):
     cfg_dict = {
         'layers': [
@@ -125,6 +159,8 @@ def SpikingConnRVGGNet(num_classes):
     return SpikeRVGGNet(cfg_dict, num_classes)
 
 model_dict = {
+    'spiking7b': Spiking7BNet,
+    'spikingconn7b': SpikingConn7BNet,
     'spiking': SpikingRVGGNet,
     'spikingconn': SpikingConnRVGGNet,
 }
