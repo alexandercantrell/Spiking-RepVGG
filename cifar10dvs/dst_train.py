@@ -270,12 +270,7 @@ class Trainer:
             target = target.to(self.gpu, non_blocking=True)
             with autocast():
                 (output, aac) = self.model(images)
-                if self.model.dsnn:
-                    loss_train = self.loss(output, target) + self.loss(aac, target)
-                    output = output+aac
-                    #loss_train = self.loss(output, target)
-                else:
-                    loss_train = self.loss(output, target) + self.loss(aac, target)
+                loss_train = self.loss(output, target) + self.loss(aac, target)
             self.scaler.scale(loss_train).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
@@ -306,11 +301,7 @@ class Trainer:
                     (output, aac) = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
-                    if self.model.dsnn:
-                        loss_val = self.loss(output, target) + self.loss(aac, target)
-                        output = output+aac
-                    else:
-                        loss_val = self.loss(output,target)
+                    loss_val = self.loss(output,target)
                     self.meters['top_1'](output, target)
                     self.meters['top_5'](output, target)
                     batch_size = target.shape[0]
