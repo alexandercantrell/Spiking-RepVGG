@@ -115,7 +115,8 @@ class SpikeRVGGNet(nn.Module):
         for conv in self.convs:
             if isinstance(conv, nn.Flatten):
                 x = conv(x)
-                y = conv(y)
+                if y is not None:
+                    y = conv(y)
             else:
                 x, y = conv(x,y)
         if y is not None:
