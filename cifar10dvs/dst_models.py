@@ -6,7 +6,7 @@ from connecting_neuron import ParaConnLIFNode, SpikeParaConnLIFNode
 
 def convrelu3x3(in_channels, out_channels, stride):
     return nn.Sequential(
-        layer.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, bias=False),
+        layer.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, stride=stride, bias=False),
         layer.BatchNorm2d(out_channels),
         nn.ReLU()
     )
