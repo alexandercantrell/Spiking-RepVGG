@@ -113,7 +113,11 @@ class SpikeRVGGNet(nn.Module):
         if self.training:
             y = x
         for conv in self.convs:
-            x, y = conv(x,y)
+            if isinstance(conv, nn.Flatten):
+                x = conv(x)
+                y = conv(y)
+            else:
+                x, y = conv(x,y)
         if y is not None:
             y = self.acc(y.mean(0))
         return self.out(x.mean(0)), y
