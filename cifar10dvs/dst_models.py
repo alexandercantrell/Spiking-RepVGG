@@ -26,9 +26,10 @@ class SpikeBlock(nn.Module):
     def forward(self, x: torch.Tensor, y: torch.Tensor = None):
         out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
         if self.identity:
-            y = y + out
+            if y is not None:
+                y = y + out
             out = out + x
-        else:
+        elif y is not None:
             y = self.aac(y) + out
         return self.sn(out), y
     
@@ -49,10 +50,12 @@ class ConnBlock(nn.Module):
     def forward(self, x: torch.Tensor, y: torch.Tensor = None):
         out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
         if self.identity:
-            y = y + out
+            if y is not None:
+                y = y + out
             out = self.sn(out, x)
         else:
-            y = self.aac(y) + out
+            if y is not None:
+                y = self.aac(y) + out
             out = self.sn(out)
         return out, y
 
