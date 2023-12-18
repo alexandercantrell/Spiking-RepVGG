@@ -60,11 +60,10 @@ class SpikeRVGGNet(nn.Module):
         for layer_dict in layer_list[1:]:
             convs.extend(self._build_layer(in_channels, layer_dict))
             in_channels = layer_dict['channels']
-        
-        convs.append(nn.Flatten(2))
 
         self.convs = convs
         self.avgpool = layer.AdaptiveAvgPool2d((1, 1))
+        self.flatten = nn.Flatten(2)
         self.out = layer.Linear(in_channels, num_classes, bias=True)
 
     def _build_layer(self, in_channels, layer_dict):
@@ -82,7 +81,7 @@ class SpikeRVGGNet(nn.Module):
             x = conv(x)
         for conv in self.convs:
             x = conv(x)
-        x = self.avgpool(x)
+        x = self.flatten(self.avgpool(x))
         return self.out(x.mean(0))
     
 def Spiking7BNet(num_classes):
