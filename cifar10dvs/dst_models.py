@@ -4,9 +4,9 @@ from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_functions import ConnectingFunction
 from connecting_neuron import ParaConnLIFNode, SpikeParaConnLIFNode
 
-def convrelu3x3(in_channels, out_channels, stride):
+def convrelu1x1(in_channels, out_channels):
     return nn.Sequential(
-        layer.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, stride=stride, bias=False),
+        layer.Conv2d(in_channels, out_channels, kernel_size=1, padding=1, stride=1, bias=False),
         layer.BatchNorm2d(out_channels),
         nn.ReLU()
     )
@@ -21,7 +21,12 @@ class SpikeBlock(nn.Module):
         self.bn = layer.BatchNorm2d(out_channels)
         self.sn = neuron.ParametricLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
         if not self.identity:
-            self.aac = convrelu3x3(in_channels, out_channels, stride)
+            self.aac = []
+            if stride != 1:
+                self.aac.append(nn.MaxPool2d(stride))
+            if in_channels != out_channels:
+                self.aac.append(convrelu1x1(in_channels, out_channels))
+            self.aac = nn.Sequential(*self.aac)
 
     def forward(self, x: torch.Tensor, y: torch.Tensor = None):
         out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
@@ -45,7 +50,12 @@ class ConnBlock(nn.Module):
             self.sn = SpikeParaConnLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
         else:
             self.sn = neuron.ParametricLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-            self.aac = convrelu3x3(in_channels, out_channels, stride)
+            self.aac = []
+            if stride != 1:
+                self.aac.append(nn.MaxPool2d(stride))
+            if in_channels != out_channels:
+                self.aac.append(convrelu1x1(in_channels, out_channels))
+            self.aac = nn.Sequential(*self.aac)
 
     def forward(self, x: torch.Tensor, y: torch.Tensor = None):
         out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
