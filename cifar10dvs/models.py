@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 from spikingjelly.activation_based import layer, neuron, surrogate
-from connecting_functions import ConnectingFunction
-from connecting_neuron import ParaConnLIFNode, SpikeParaConnLIFNode
+from connecting_neuron import SpikeParaConnLIFNode
 
 class SpikeBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride):
@@ -32,10 +31,6 @@ class ConnBlock(nn.Module):
             self.sn = SpikeParaConnLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())#
         else:
             self.sn = neuron.ParametricLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-        #if stride != 1:
-        #    self.mp = layer.MaxPool2d(stride,stride)
-        #else:
-        #    self.mp = None
 
     def forward(self, x: torch.Tensor):
         out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
@@ -43,9 +38,54 @@ class ConnBlock(nn.Module):
             out = self.sn(out, x)
         else:
             out = self.sn(out)
-        #if self.mp is not None:#
-        #    out = self.mp(out)#
         return out    
+
+class Spike7BRVGGNet(nn.Module):
+    def __init__(self, cfg_dict, num_classes):
+        super(SpikeRVGGNet, self).__init__()
+        if cfg_dict['block_type'] == 'spike':
+            self.block = SpikeBlock
+        elif cfg_dict['block_type'] == 'conn':
+            self.block = ConnBlock
+        else:
+            raise NotImplementedError
+        
+        in_channels = 2
+        layer_list = cfg_dict['layers']
+        self.in_layer = self._build_layer(in_channels, layer_list[0])
+        in_channels = layer_list[0]['channels']
+
+        convs = nn.Sequential()
+        for layer_dict in layer_list[1:]:
+            convs.extend(self._build_layer(in_channels, layer_dict))
+            in_channels = layer_dict['channels']
+
+        self.convs = convs
+
+        self.avgpool = layer.AdaptiveAvgPool2d((1, 1))
+        
+        self.flatten = nn.Flatten(2)
+
+        self.out = layer.Linear(in_channels, num_classes, bias=True)
+
+    def _build_layer(self, in_channels, layer_dict):
+        channels = layer_dict['channels']
+        stride = layer_dict['stride']
+        convs = nn.Sequential()
+        convs.append(self.block(in_channels, channels, 1))
+        for _ in range(layer_dict['num_blocks'] - 1):
+            convs.append(self.block(channels, channels, 1))
+        if stride > 1:
+            convs.append(layer.MaxPool2d(stride))
+        return convs
+    
+    def forward(self, x: torch.Tensor):
+        x = x.permute(1,0,2,3,4)
+        x = self.in_layer(x)
+        x = self.convs(x)
+        x = self.avgpool(x)
+        x = self.flatten(x)
+        return self.out(x.mean(0))
 
 class SpikeRVGGNet(nn.Module):
     def __init__(self, cfg_dict, num_classes):
@@ -62,43 +102,30 @@ class SpikeRVGGNet(nn.Module):
         self.in_layer = self._build_layer(in_channels, layer_list[0])
         in_channels = layer_list[0]['channels']
         
-        convs = nn.ModuleList()
+        convs = nn.Sequential()
         for layer_dict in layer_list[1:]:
             convs.extend(self._build_layer(in_channels, layer_dict))
             in_channels = layer_dict['channels']
 
         self.convs = convs
-        #self.avgpool = layer.AdaptiveAvgPool2d((1, 1))
+        self.avgpool = layer.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten(2)
         self.out = layer.Linear(in_channels, num_classes, bias=True)
 
-    #def _build_layer(self, in_channels, layer_dict):
-    #    channels = layer_dict['channels']
-    #    stride = layer_dict['stride']
-    #    convs = nn.ModuleList()
-    #    convs.append(self.block(in_channels, channels, stride))
-    #    for _ in range(layer_dict['num_blocks'] - 1):
-    #        convs.append(self.block(channels, channels, 1))
-    #    return convs
-    
     def _build_layer(self, in_channels, layer_dict):
         channels = layer_dict['channels']
         stride = layer_dict['stride']
-        convs = nn.ModuleList()
-        convs.append(self.block(in_channels,channels,1))
-        for _ in range(layer_dict['num_blocks']-1):
+        convs = nn.Sequential()
+        convs.append(self.block(in_channels, channels, stride))
+        for _ in range(layer_dict['num_blocks'] - 1):
             convs.append(self.block(channels, channels, 1))
-        if stride > 1:
-            convs.append(layer.MaxPool2d(stride))
         return convs
 
     def forward(self, x: torch.Tensor):
         x = x.permute(1,0,2,3,4)
-        for conv in self.in_layer:
-            x = conv(x)
-        for conv in self.convs:
-            x = conv(x)
-        #x = self.flatten(self.avgpool(x))
+        x = self.in_layer(x)
+        x = self.convs(x)
+        x = self.avgpool(x)
         x = self.flatten(x)
         return self.out(x.mean(0))
     
@@ -115,7 +142,7 @@ def Spiking7BNet(num_classes):
         ],
         'block_type': 'spike',
     }
-    return SpikeRVGGNet(cfg_dict, num_classes)
+    return Spike7BRVGGNet(cfg_dict, num_classes)
 
 def SpikingConn7BNet(num_classes):
     cfg_dict = {
@@ -130,7 +157,7 @@ def SpikingConn7BNet(num_classes):
         ],
         'block_type': 'conn',
     }
-    return SpikeRVGGNet(cfg_dict, num_classes)
+    return Spike7BRVGGNet(cfg_dict, num_classes)
 
 def SpikingRVGGNet(num_classes):
     cfg_dict = {
