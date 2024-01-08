@@ -2,19 +2,18 @@ import datetime
 import torch as ch
 from torch.cuda.amp import GradScaler
 from torch.cuda.amp import autocast
-import torch.nn.functional as F
 import torch.distributed as dist
 from torch.utils.tensorboard import SummaryWriter
 import torchmetrics
 import numpy as np
 from tqdm import tqdm
+import math
 
 import shutil
 
 import os
 import time
 import json
-from typing import List
 from argparse import ArgumentParser
 
 from fastargs import get_current_config
@@ -22,54 +21,26 @@ from fastargs.decorators import param
 from fastargs import Param, Section
 from fastargs.validation import And, OneOf
 
-from ffcv.pipeline.operation import Operation
-from ffcv.loader import Loader, OrderOption
-from ffcv.transforms import ToTensor, ToDevice, Squeeze, NormalizeImage, \
-    RandomHorizontalFlip, ToTorchImage
-from ffcv.fields.rgb_image import CenterCropRGBImageDecoder, \
-    RandomResizedCropRGBImageDecoder
-from ffcv.fields.basics import IntDecoder
+from models import get_model_by_name
 
-from nn.models import get_model_func_by_name
-from nn.surrogate import FastATan
+from spikingjelly.activation_based import neuron, functional
+from spikingjelly.datasets import dvs128_gesture
 
-from spikingjelly.activation_based import surrogate, neuron, functional
+import connecting_neuron
 
 SEED=2020
-ch.backends.cudnn.benchmark = True
+import random
+random.seed(SEED)
+ch.backends.cudnn.deterministic = True
+ch.backends.cudnn.benchmark = False
 ch.manual_seed(SEED)
 ch.cuda.manual_seed_all(SEED)
 np.random.seed(SEED)
 
-IMAGENET_MEANS = (0.485, 0.456, 0.406)
-IMAGENET_STDS = (0.229, 0.224, 0.225)
-CIFAR10_MEANS = (0.4914, 0.4822, 0.4465)
-CIFAR10_STDS = (0.2023, 0.1994, 0.2010)
-CIFAR100_MEANS = (0.507, 0.487, 0.441)
-CIFAR100_STDS = (0.267, 0.256, 0.276)
-
-DATASET_STATS = {
-    'imagenet': (IMAGENET_MEANS, IMAGENET_STDS),
-    'cifar10': (CIFAR10_MEANS, CIFAR10_STDS),
-    'cifar100': (CIFAR100_MEANS, CIFAR100_STDS)
-}
-
-DATASET_NUM_CLASSES = {
-    'imagenet': 1000,
-    'cifar10': 10,
-    'cifar100': 100
-}
-
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
-    block=Param(str, 'model block', required=True),
-    fast_atan=Param(bool,'surrogate',is_flag=True),
-    atan_alpha=Param(float,'atan alpha',default=2.0),
-    zero_init_residual=Param(bool,'initialize all weights to zero',is_flag=True),
-    cnf = Param(str,'cnf',default='ADD'),
-    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     resume = Param(str,'checkpoint to load from',default=None),
-    reuse_neurons = Param(bool,'reuse neurons',is_flag=True)
+    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
 )
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
@@ -78,28 +49,15 @@ Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
 
 Section('data', 'data related stuff').params(
     path = Param(str,'path to dataset folder',required=True),
-    dataset=Param(str,'dataset name',required=True),
-    T=Param(int,'T',default=4),
-    num_workers=Param(int, 'The number of workers', default=16),
-    in_memory=Param(bool, 'keep dataset in memory', is_flag=True)
+    T=Param(int,'T',default=16),
+    num_workers=Param(int, 'The number of workers', default=4),
 )
 
 Section('lr','lr scheduling').params(
     lr=Param(float,'',default=0.1),
-    scheduler=Param(And(str,OneOf(['step','cosa'])),'',default='cosa'),
-    warmup_epochs=Param(int,'',default=5)
-)
-Section('lr').enable_if(lambda cfg: cfg['lr.scheduler'] == 'step').params(
-    gamma=Param(float,'',default=0.1),
-    step_size=Param(int,'',default=30)
-)
-Section('lr').enable_if(lambda cfg: cfg['lr.scheduler'] == 'cosa').params(
-    eta_min=Param(float,'',default=0.0)
-)
-Section('lr').enable_if(lambda cfg: cfg['lr.warmup_epochs']>0).params(
-    warmup_method=Param(And(str,OneOf(['linear','constant'])),'',default='linear'),
-    warmup_decay=Param(float,'',default=0.01)
-)
+    gamma = Param(float,'lr decay factor',default=0.1),
+    step_size = Param(int,'lr decay step size',default=64),
+) 
 
 Section('logging', 'how to log stuff').params(
     folder=Param(str, 'log location', default='./logs/'),
@@ -108,10 +66,7 @@ Section('logging', 'how to log stuff').params(
 )
 
 Section('validation', 'Validation parameters stuff').params(
-    resize_size=Param(int,'Size to resize validation images to before cropping',default=256),
-    crop_size=Param(int,'Size to crop valdiation images to',default=224),
-    batch_size=Param(int, 'The validation batch size for validation', default=256),
-    lr_tta=Param(bool, 'should do lr flipping/avging at test time', is_flag=True),
+    batch_size=Param(int, 'The validation batch size for validation', default=16),
     eval_only=Param(bool,'only perform evaluation',is_flag=True)
 )
 
@@ -120,14 +75,10 @@ Section('optim','optimizer hyper params').params(
     weight_decay=Param(float, 'weight decay', default=0.0),
 )
 
-Section('criterion','criterion hyper params').params(
-    label_smoothing=Param(float, 'label smoothing parameter', default=0.1),
-)
-
 Section('training', 'training hyper param stuff').params(
-    crop_size=Param(int,'Size to crop training images to',default=176),
-    batch_size=Param(int, 'The training batch size', default=256),
-    epochs=Param(int, 'number of epochs', default=120),
+    batch_size=Param(int, 'The training batch size', default=16),
+    T_train = Param(int,'T_train',default=None),
+    epochs=Param(int, 'number of epochs', default=192),
 )
 
 Section('dist', 'distributed training options').params(
@@ -143,10 +94,9 @@ class Trainer:
     def __init__(self, gpu, distributed, resume=None):
         self.all_params = get_current_config()
         self.gpu = gpu
-
+        self.num_classes = 11
         if distributed:
             self.setup_distributed()
-        self.set_dataset_stats()
         self.train_loader = self.create_train_loader()
         self.val_loader = self.create_val_loader()
         self.model, self.scaler = self.create_model_and_scaler()
@@ -157,6 +107,7 @@ class Trainer:
         self.create_optimizer()
         self.create_scheduler()
         self.initialize_logger()
+    
     @param('dist.address')
     @param('dist.port')
     @param('dist.world_size')
@@ -170,136 +121,65 @@ class Trainer:
     def cleanup_distributed(self):
         dist.destroy_process_group()
 
-    @param('data.dataset')
-    def set_dataset_stats(self,dataset):
-        means, stds = DATASET_STATS[dataset]
-        means = np.array(means)*255
-        stds = np.array(stds)*255
-        self.means=means
-        self.stds = stds
-        self.num_classes = DATASET_NUM_CLASSES[dataset]
-
     @param('data.path')
-    @param('training.crop_size')
+    @param('data.T')
     @param('data.num_workers')
     @param('training.batch_size')
     @param('dist.distributed')
-    @param('data.in_memory')
-    def create_train_loader(self, path, crop_size, num_workers, batch_size,
-                            distributed, in_memory):
-        this_device = f'cuda:{self.gpu}'
-        train_path = os.path.join(path,'train.ffcv')
-        assert os.path.exists(train_path)
-        image_pipeline: List[Operation] = [
-            RandomResizedCropRGBImageDecoder((crop_size, crop_size)),
-            RandomHorizontalFlip(),
-            ToTensor(),
-            ToDevice(ch.device(this_device), non_blocking=True),
-            ToTorchImage(),
-            NormalizeImage(self.means, self.stds, np.float16)
-        ]
-
-        label_pipeline: List[Operation] = [
-            IntDecoder(),
-            ToTensor(),
-            Squeeze(),
-            ToDevice(ch.device(this_device), non_blocking=True)
-        ]
-
-        order = OrderOption.RANDOM if distributed else OrderOption.QUASI_RANDOM
-        loader = Loader(train_path,
-                        batch_size=batch_size,
-                        num_workers=num_workers,
-                        order=order,
-                        os_cache=in_memory,
-                        drop_last=True,
-                        pipelines={
-                            'image': image_pipeline,
-                            'label': label_pipeline
-                        },
-                        distributed=distributed)
-
+    def create_train_loader(self, path, T, num_workers, batch_size,
+                            distributed):
+        dataset = dvs128_gesture.DVS128Gesture(root=path, train=True, data_type='frame',frames_number=T, split_by='number')
+        if distributed:
+            sampler = ch.utils.data.distributed.DistributedSampler(dataset)
+        else:
+            sampler = ch.utils.data.RandomSampler(dataset)
+        loader = ch.utils.data.DataLoader(
+            dataset, 
+            batch_size=batch_size, 
+            sampler=sampler,
+            num_workers=num_workers,
+            pin_memory=True, 
+            drop_last=True
+        )
         return loader
 
     @param('data.path')
-    @param('validation.resize_size')
-    @param('validation.crop_size')
+    @param('data.T')
     @param('data.num_workers')
     @param('validation.batch_size')
     @param('dist.distributed')
-    @param('data.in_memory')
-    def create_val_loader(self, path, resize_size, crop_size, num_workers, 
-                          batch_size, distributed, in_memory):
-        this_device = f'cuda:{self.gpu}'
-        val_path = os.path.join(path,'val.ffcv')
-        assert(os.path.exists(val_path))
-        res_tuple = (crop_size, crop_size)
-        ratio = float(crop_size)/float(resize_size)
-        image_pipeline = [
-            CenterCropRGBImageDecoder(res_tuple, ratio=ratio),
-            ToTensor(),
-            ToDevice(ch.device(this_device), non_blocking=True),
-            ToTorchImage(),
-            NormalizeImage(self.means, self.stds, np.float16)
-        ]
-
-        label_pipeline = [
-            IntDecoder(),
-            ToTensor(),
-            Squeeze(),
-            ToDevice(ch.device(this_device),
-            non_blocking=True)
-        ]
-
-        loader = Loader(val_path,
-                        batch_size=batch_size,
-                        num_workers=num_workers,
-                        order=OrderOption.SEQUENTIAL,
-                        os_cache=in_memory,
-                        drop_last=False,
-                        pipelines={
-                            'image': image_pipeline,
-                            'label': label_pipeline
-                        },
-                        distributed=distributed)
+    def create_val_loader(self, path, T, num_workers, batch_size, 
+                          distributed):
+        dataset = dvs128_gesture.DVS128Gesture(root=path, train=False, data_type='frame',frames_number=T, split_by='number')
+        if distributed:
+            sampler = ch.utils.data.distributed.DistributedSampler(dataset)
+        else:
+            sampler = ch.utils.data.SequentialSampler(dataset)
+        loader = ch.utils.data.DataLoader(
+            dataset, 
+            batch_size=batch_size, 
+            sampler=sampler,
+            num_workers=num_workers,
+            pin_memory=True, 
+            drop_last=False
+        )
         return loader
 
     @param('model.arch')
-    @param('model.block')
-    @param('model.fast_atan')
-    @param('model.atan_alpha')
-    @param('model.cnf')
-    @param('model.zero_init_residual')
     @param('model.cupy')
-    @param('data.T')
     @param('dist.distributed')
-    @param('model.reuse_neurons')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, block, fast_atan, atan_alpha, cnf, zero_init_residual, cupy, T, distributed, reuse_neurons=False, sync_bn=None):
+    def create_model_and_scaler(self, arch, cupy, distributed, sync_bn=None):
         scaler = GradScaler()
-        surrogate_function = surrogate.ATan(alpha=atan_alpha)
-        if fast_atan:
-            surrogate_function = FastATan(alpha=atan_alpha/2.0)
-        if 'Spiking' in arch:
-            model = get_model_func_by_name(arch)(block=block,num_classes=self.num_classes,deploy=False,spiking_neuron=neuron.IFNode,
-                                                 reuse_neurons=reuse_neurons,zero_init_residual=zero_init_residual,
-                                                 surrogate_function=surrogate_function,detach_reset=True)
-        elif 'SEW' in arch:
-            model = get_model_func_by_name(arch)(block=block,num_classes=self.num_classes,deploy=False,cnf=cnf,spiking_neuron=neuron.IFNode,
-                                                 reuse_neurons=reuse_neurons,zero_init_residual=zero_init_residual,
-                                                 surrogate_function=surrogate_function,detach_reset=True)
-        else:
-            raise ValueError(f"Model architecture {arch} does not exist!")
         
-        if T>0:
-            functional.set_step_mode(model,'m')
-        else:
-            functional.set_step_mode(model,'s')
-
+        arch=arch.lower()
+        model = get_model_by_name(arch)(num_classes=self.num_classes)
+        functional.set_step_mode(model,'m')
         if cupy:
-            functional.set_backend(model,'cupy',instance=neuron.IFNode)
+            functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
+            functional.set_backend(model,'cupy',instance=connecting_neuron.ParaConnLIFNode)
+            functional.set_backend(model,'cupy',instance=connecting_neuron.SpikeParaConnLIFNode)
 
-        model = model.to(memory_format=ch.channels_last)
         model = model.to(self.gpu)
 
         if distributed:
@@ -311,10 +191,7 @@ class Trainer:
     @param('lr.lr')
     @param('optim.momentum')
     @param('optim.weight_decay')
-    @param('criterion.label_smoothing')
-    def create_optimizer(self, lr, momentum, weight_decay,
-                         label_smoothing):
-
+    def create_optimizer(self, lr, momentum, weight_decay):
         # Only do weight decay on non-batchnorm parameters
         all_params = list(self.model.named_parameters())
         print(f"Total number of parameters: {len(all_params)}")
@@ -329,62 +206,14 @@ class Trainer:
             'params': other_params,
             'weight_decay': weight_decay
         }]
-
         self.optimizer = ch.optim.SGD(param_groups, lr=lr, momentum=momentum)
-        self.loss = ch.nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+        self.loss = ch.nn.CrossEntropyLoss()
 
-    @param('lr.scheduler')
-    @param('training.epochs')
-    @param('lr.warmup_epochs')
+
     @param('lr.step_size')
     @param('lr.gamma')
-    @param('lr.eta_min')
-    @param('lr.warmup_method')
-    @param('lr.warmup_decay')
-    def create_scheduler(self,scheduler,epochs,warmup_epochs,step_size=None,gamma=None,eta_min=None,warmup_method=None,warmup_decay=None):
-        scheduler=scheduler.lower()
-        if scheduler == "step":
-            main_lr_scheduler = ch.optim.lr_scheduler.StepLR(self.optimizer,step_size=step_size,gamma=gamma,last_epoch=self.start_epoch-1)
-        elif scheduler == 'cosa':
-            main_lr_scheduler = ch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,T_max=epochs-warmup_epochs,eta_min=eta_min,last_epoch=self.start_epoch-1)
-        else:
-            raise RuntimeError(
-                f"Invalid lr scheduler '{scheduler}'. Only StepLR and CosineAnnealingLR are supported."
-            )
-        if warmup_epochs>0:
-            warmup_method=warmup_method.lower()
-            if warmup_method=='linear':
-                warmup_lr_scheduler=ch.optim.lr_scheduler.LinearLR(
-                    self.optimizer,start_factor=warmup_decay,total_iters=warmup_epochs
-                )
-            elif warmup_method=='constant':
-                warmup_lr_scheduler=ch.optim.lr_scheduler.ConstantLR(
-                    self.optimizer,factor=warmup_decay,total_iters=warmup_epochs
-                )
-            else:
-                raise RuntimeError(
-                    f"Invalid warmup lr method '{warmup_method}'. Only linear and constant are supported."
-                )
-            lr_scheduler = ch.optim.lr_scheduler.SequentialLR(
-                self.optimizer, schedulers=[warmup_lr_scheduler, main_lr_scheduler], milestones=[warmup_epochs], last_epoch=self.start_epoch-1
-            )
-        else:
-            lr_scheduler = main_lr_scheduler
-        self.lr_scheduler = lr_scheduler
-
-    @param('data.T')
-    def preprocess(self,x,T):
-        if T > 0:
-            return x.unsqueeze(0).repeat(T,1,1,1,1)
-        else:
-            return x
-        
-    @param('data.T')
-    def postprocess(self,y,T):
-        if T > 0:
-            return y.mean(0)
-        else:
-            return y
+    def create_scheduler(self,step_size,gamma):
+        self.lr_scheduler = ch.optim.lr_scheduler.StepLR(self.optimizer,step_size=step_size,gamma=gamma,last_epoch=self.start_epoch-1)
 
     @param('training.epochs')
     def train(self, epochs):
@@ -423,18 +252,23 @@ class Trainer:
                 val_time=val_time
             ))
 
-    def train_loop(self):
+    @param('training.T_train')
+    def train_loop(self, T_train=None):
         model = self.model
         model.train()
 
         for images, target in tqdm(self.train_loader):
             start = time.time()
             self.optimizer.zero_grad(set_to_none=True)
+            images = images.to(self.gpu, non_blocking=True).float()
+            target = target.to(self.gpu, non_blocking=True)
+            if T_train:
+                sec_list = np.random.choice(images.shape[1],T_train,replace=False)
+                sec_list.sort()
+                images = images[:,sec_list]
             with autocast():
-                images = self.preprocess(images)
-                output = self.model(images)
-                output = self.postprocess(output)
-                loss_train = self.loss(output, target)
+                (output, aac) = self.model(images)
+                loss_train = self.loss(output, target) + self.loss(aac, target)
             self.scaler.scale(loss_train).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
@@ -453,8 +287,7 @@ class Trainer:
         [meter.reset() for meter in self.meters.values()]
         return stats
 
-    @param('validation.lr_tta')
-    def val_loop(self, lr_tta):
+    def val_loop(self):
         model = self.model
         model.eval()
 
@@ -462,19 +295,15 @@ class Trainer:
             with autocast():
                 for images, target in tqdm(self.val_loader):
                     start = time.time()
-                    images = self.preprocess(images)
-                    output = self.model(images)
-                    functional.reset_net(model)
-                    if lr_tta:
-                        output += self.model(ch.flip(images, dims=[-1]))
-                    output = self.postprocess(output)
+                    images = images.to(self.gpu, non_blocking=True).float()
+                    target = target.to(self.gpu, non_blocking=True)
+                    (output, aac) = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
 
                     self.meters['top_1'](output, target)
                     self.meters['top_5'](output, target)
                     batch_size = target.shape[0]
-                    if lr_tta: batch_size*=2
                     self.meters['thru'](ch.tensor(batch_size/(end-start)))
                     loss_val = self.loss(output, target)
                     self.meters['loss'](loss_val)
@@ -486,11 +315,9 @@ class Trainer:
     @param('logging.folder')
     @param('logging.tag')
     @param('model.arch')
-    @param('model.block')
-    @param('model.cnf')
-    @param('model.reuse_neurons')
+    @param('lr.lr')
     @param('logging.clean')
-    def initialize_logger(self, folder, tag, arch, block, cnf, reuse_neurons=False, clean=None):
+    def initialize_logger(self, folder, tag, arch, lr, clean=None):
         self.meters = {
             'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False).to(self.gpu),
             'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False, top_k=5).to(self.gpu),
@@ -499,10 +326,7 @@ class Trainer:
         }
 
         if self.gpu == 0:
-            arch_block = f'{arch}_{block}' 
-            if reuse_neurons:
-                arch_block = f'{arch_block}_reuse'
-            folder = os.path.join(folder,arch_block,f'{tag}_{cnf}')
+            folder = os.path.join(folder,'dvsgesture',arch,tag)
             if os.path.exists(folder) and clean:
                 shutil.rmtree(folder)
             os.makedirs(folder,exist_ok=True)

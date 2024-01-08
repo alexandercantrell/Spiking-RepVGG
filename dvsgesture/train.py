@@ -7,6 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torchmetrics
 import numpy as np
 from tqdm import tqdm
+import math
 
 import shutil
 
@@ -25,6 +26,8 @@ from models import get_model_by_name
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import dvs128_gesture
 
+import connecting_neuron
+
 SEED=2020
 import random
 random.seed(SEED)
@@ -36,9 +39,8 @@ np.random.seed(SEED)
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
-    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     resume = Param(str,'checkpoint to load from',default=None),
-    cnf = Param(str,'cnf',default='ADD')
+    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
 )
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
@@ -53,8 +55,8 @@ Section('data', 'data related stuff').params(
 
 Section('lr','lr scheduling').params(
     lr=Param(float,'',default=0.1),
-    gamma=Param(float,'',default=0.1),
-    step_size=Param(int,'',default=64),
+    gamma = Param(float,'lr decay factor',default=0.1),
+    step_size = Param(int,'lr decay step size',default=64),
 ) 
 
 Section('logging', 'how to log stuff').params(
@@ -105,6 +107,7 @@ class Trainer:
         self.create_optimizer()
         self.create_scheduler()
         self.initialize_logger()
+    
     @param('dist.address')
     @param('dist.port')
     @param('dist.world_size')
@@ -161,21 +164,21 @@ class Trainer:
             drop_last=False
         )
         return loader
-    
+
     @param('model.arch')
     @param('model.cupy')
     @param('dist.distributed')
-    @param('model.cnf')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, cupy, distributed, cnf=None, sync_bn=None):
+    def create_model_and_scaler(self, arch, cupy, distributed, sync_bn=None):
         scaler = GradScaler()
         
         arch=arch.lower()
-        model = get_model_by_name(arch)(num_classes=self.num_classes,cnf=cnf)
+        model = get_model_by_name(arch)(num_classes=self.num_classes)
         functional.set_step_mode(model,'m')
-
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
+            functional.set_backend(model,'cupy',instance=connecting_neuron.ParaConnLIFNode)
+            functional.set_backend(model,'cupy',instance=connecting_neuron.SpikeParaConnLIFNode)
 
         model = model.to(self.gpu)
 
@@ -205,6 +208,7 @@ class Trainer:
         }]
         self.optimizer = ch.optim.SGD(param_groups, lr=lr, momentum=momentum)
         self.loss = ch.nn.CrossEntropyLoss()
+
 
     @param('lr.step_size')
     @param('lr.gamma')
@@ -312,9 +316,8 @@ class Trainer:
     @param('logging.tag')
     @param('model.arch')
     @param('lr.lr')
-    @param('model.cnf')
     @param('logging.clean')
-    def initialize_logger(self, folder, tag, arch, lr, cnf,clean=None):
+    def initialize_logger(self, folder, tag, arch, lr, clean=None):
         self.meters = {
             'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False).to(self.gpu),
             'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False, top_k=5).to(self.gpu),
@@ -323,7 +326,7 @@ class Trainer:
         }
 
         if self.gpu == 0:
-            folder = os.path.join(folder,'dvsgesture',arch,f'{tag}_{cnf}')
+            folder = os.path.join(folder,'dvsgesture',arch,tag)
             if os.path.exists(folder) and clean:
                 shutil.rmtree(folder)
             os.makedirs(folder,exist_ok=True)

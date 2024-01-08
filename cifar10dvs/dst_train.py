@@ -21,11 +21,10 @@ from fastargs.decorators import param
 from fastargs import Param, Section
 from fastargs.validation import And, OneOf
 
-from models import get_model_by_name
+from dst_models import get_model_by_name
 
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import cifar10_dvs
-
 import connecting_neuron
 
 SEED=2020
@@ -179,7 +178,7 @@ class Trainer:
     @param('model.cupy')
     @param('dist.distributed')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, cupy, distributed, sync_bn=None):
+    def create_model_and_scaler(self, arch, cupy, distributed,  sync_bn=None):
         scaler = GradScaler()
         
         arch=arch.lower()
@@ -189,7 +188,6 @@ class Trainer:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
             functional.set_backend(model,'cupy',instance=connecting_neuron.ParaConnLIFNode)
             functional.set_backend(model,'cupy',instance=connecting_neuron.SpikeParaConnLIFNode)
-
         model = model.to(self.gpu)
 
         if distributed:
@@ -271,14 +269,13 @@ class Trainer:
             images = images.to(self.gpu, non_blocking=True).float()
             target = target.to(self.gpu, non_blocking=True)
             with autocast():
-                output = self.model(images)
-                loss_train = self.loss(output, target)
+                (output, aac) = self.model(images)
+                loss_train = self.loss(output, target) + self.loss(aac, target)
             self.scaler.scale(loss_train).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
             functional.reset_net(model)
             end = time.time()
-
             output=output.detach()
             target=target.detach()
             self.meters['top_1'](output,target)
@@ -301,15 +298,14 @@ class Trainer:
                     start = time.time()
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
-                    output = self.model(images)
+                    (output, aac) = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
-
+                    loss_val = self.loss(output,target)
                     self.meters['top_1'](output, target)
                     self.meters['top_5'](output, target)
                     batch_size = target.shape[0]
                     self.meters['thru'](ch.tensor(batch_size/(end-start)))
-                    loss_val = self.loss(output, target)
                     self.meters['loss'](loss_val)
 
         stats = {k: m.compute().item() for k, m in self.meters.items()}
@@ -321,7 +317,7 @@ class Trainer:
     @param('model.arch')
     @param('lr.lr')
     @param('logging.clean')
-    def initialize_logger(self, folder, tag, arch, lr, clean=None):
+    def initialize_logger(self, folder, tag, arch, lr,clean=None):
         self.meters = {
             'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False).to(self.gpu),
             'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False, top_k=5).to(self.gpu),
