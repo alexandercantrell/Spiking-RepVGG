@@ -95,7 +95,7 @@ class ConnBlock(nn.Module):
         out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
         #out = self.conv1x1(x) + self.bn3x3(self.conv3x3(x))
         if self.identity:
-            out = self.sn(out,x)
+            #out = self.sn(out,x)
             if y is not None:
                 #y = F.relu(self.abn(y + out))
                 #y = self.abn(y+out)
@@ -105,9 +105,9 @@ class ConnBlock(nn.Module):
                 #y = self.abn(out)
                 #y = F.relu(self.abn(out))#
             #out = self.bn(out)
-            #out = self.sn(out, x)
+            out = self.sn(out, x)
         else:
-            out = self.sn(out)
+            #out = self.sn(out)
             if y is not None:
                 #y = F.relu(self.abn(self.aac(y) + out))
                 #y = self.abn(self.aac(y) + out)
@@ -117,7 +117,7 @@ class ConnBlock(nn.Module):
                 #y = self.abn(out)
                 y = out
             #out = self.bn(out)
-            #out = self.sn(out)
+            out = self.sn(out)
         return out, y
     
 class MaxPoolBlock(nn.Module):
@@ -286,11 +286,13 @@ def SpikingRVGGNetFSNN(num_classes):
 def SpikingConnRVGGNetFSNN(num_classes):
     cfg_dict = {
         'layers': [
-            {'channels': 64, 'num_blocks': 4, 'stride': 1},#128->64
-            {'channels': 64, 'num_blocks': 6, 'stride': 2},#64->32
+            {'channels': 64, 'num_blocks': 1, 'stride': 1},#128->64
+            {'channels': 64, 'num_blocks': 7, 'stride': 2},#64->32
             {'channels': 64, 'num_blocks': 6, 'stride': 2},#32->16
-            {'channels': 128, 'num_blocks': 4, 'stride': 2},#16->8
-            {'channels': 128, 'num_blocks': 1, 'stride': 2},#8->4
+            {'channels': 64, 'num_blocks': 5, 'stride': 2},#16->8
+            {'channels': 64, 'num_blocks': 1, 'stride': 2},#8->4
+           # {'channels': 48, 'num_blocks': 3, 'stride': 2},
+            #{'channels': 64, 'num_blocks': 3, 'stride': 2},
         ],
         'block_type': 'conn',
     }
