@@ -4,17 +4,21 @@ import torch.nn.functional as F
 from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_neuron import SpikeParaConnLIFNode
 
-def convrelu1x1(in_channels, out_channels):
-    return nn.Sequential(
-        layer.Conv2d(in_channels, out_channels, kernel_size=1, padding=0, stride=1, bias=False),
-        layer.BatchNorm2d(out_channels),
-        nn.ReLU()
-    )
-
-def conv3x3(in_channels, stride):
-    return nn.Sequential(
-        layer.Conv2d(in_channels, in_channels, kernel_size=3, padding=1, stride = stride, bias=False, groups=in_channels),
-    )
+def convrelupxp(in_channels, out_channels, stride=1):
+    if stride != 1:
+        return nn.Sequential(
+            layer.Conv2d(in_channels, in_channels, kernel_size=3, stride=stride,
+                        groups=in_channels, padding=1, bias=False),
+            layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False),
+            layer.BatchNorm2d(out_channels),
+            nn.ReLU()
+        )
+    else:
+        return nn.Sequential(
+            layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False),
+            layer.BatchNorm2d(out_channels),
+            nn.ReLU()
+        )
 
 class SpikeBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride):
@@ -26,15 +30,11 @@ class SpikeBlock(nn.Module):
         self.bn = layer.BatchNorm2d(out_channels)
         self.sn = neuron.ParametricLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
         if not self.identity:
-            self.aac = nn.Sequential()
-            if stride != 1:
-                self.aac.append(conv3x3(in_channels, stride))
-            self.aac.append(convrelu1x1(in_channels, out_channels))
+            self.aac = convrelupxp(in_channels, out_channels, stride)
 
     def forward(self, x):
         x, y = x
-        out = self.conv1x1(x) + self.bn3x3(self.conv3x3(x))
-        out = self.bn(out)
+        out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
         if self.identity:
             if y is not None:
                 y = y + out
@@ -60,14 +60,11 @@ class ConnBlock(nn.Module):
             self.sn = SpikeParaConnLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
         else:
             self.sn = neuron.ParametricLIFNode(init_tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-            self.aac = nn.Sequential()
-            if stride!=1:   
-                self.aac.append(conv3x3(in_channels, stride))
-            self.aac.append(convrelu1x1(in_channels, out_channels))
+            self.aac = convrelupxp(in_channels, out_channels, stride)
+
     def forward(self, x):
         x, y = x
-        out = self.conv1x1(x) + self.bn3x3(self.conv3x3(x))
-        out = self.bn(out)
+        out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
         if self.identity:
             if y is not None:
                 y = y + out
@@ -85,12 +82,12 @@ class ConnBlock(nn.Module):
 class MaxPoolBlock(nn.Module):
     def __init__(self, stride):
         super(MaxPoolBlock, self).__init__()
-        self.mp = layer.MaxPool2d(stride)
+        self.pool = layer.MaxPool2d(stride)
     def forward(self, x):
         x, y = x
-        x = self.mp(x)
+        x = self.pool(x)
         if y is not None:
-            y = self.mp(y)
+            y = self.pool(y)
         return x, y
 
 class Spike7BRVGGNet(nn.Module):
@@ -105,11 +102,8 @@ class Spike7BRVGGNet(nn.Module):
         
         in_channels = 2
         layer_list = cfg_dict['layers']
-        self.in_layer = self._build_layer(in_channels, layer_list[0])
-        in_channels = layer_list[0]['channels']
-        
         convs = nn.Sequential()
-        for layer_dict in layer_list[1:]:
+        for layer_dict in layer_list:
             convs.extend(self._build_layer(in_channels, layer_dict))
             in_channels = layer_dict['channels']
 
@@ -136,11 +130,7 @@ class Spike7BRVGGNet(nn.Module):
     
     def forward(self, x: torch.Tensor):
         x = x.permute(1,0,2,3,4)
-        y = None
-        x,y = self.in_layer((x,y))
-        if self.training and y is None:
-            y = x
-        x,y = self.convs((x,y))
+        x,y = self.convs((x,None))
         x = self.avgpool(x)
         x = self.flatten(x)
         if y is not None:
@@ -161,11 +151,8 @@ class SpikeRVGGNet(nn.Module):
         
         in_channels = 2
         layer_list = cfg_dict['layers']
-        self.in_layer = self._build_layer(in_channels, layer_list[0])
-        in_channels = layer_list[0]['channels']
-        
         convs = nn.Sequential()
-        for layer_dict in layer_list[1:]:
+        for layer_dict in layer_list:
             convs.extend(self._build_layer(in_channels, layer_dict))
             in_channels = layer_dict['channels']
 
@@ -187,11 +174,7 @@ class SpikeRVGGNet(nn.Module):
     
     def forward(self, x: torch.Tensor):
         x = x.permute(1,0,2,3,4)
-        y = None
-        x,y = self.in_layer((x,y))
-        if self.training and y is None:
-            y = x
-        x,y = self.convs((x,y))
+        x,y = self.convs((x,None))
         x = self.avgpool(x)
         x = self.flatten(x)
         if y is not None:
