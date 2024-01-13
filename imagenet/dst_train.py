@@ -319,8 +319,7 @@ class Trainer:
         [meter.reset() for meter in self.meters.values()]
         return stats
 
-    @param('validation.lr_tta')
-    def val_loop(self, lr_tta):
+    def val_loop(self):
         model = self.model
         model.eval()
 
@@ -337,7 +336,6 @@ class Trainer:
                     self.meters['top_1'](output, target)
                     self.meters['top_5'](output, target)
                     batch_size = target.shape[0]
-                    if lr_tta: batch_size*=2
                     self.meters['thru'](ch.tensor(batch_size/(end-start)))
                     loss_val = self.loss(output, target)
                     self.meters['loss'](loss_val)
