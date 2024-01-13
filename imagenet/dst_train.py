@@ -115,6 +115,8 @@ class Trainer:
         self.all_params = get_current_config()
         self.gpu = gpu
         self.num_classes = IMAGENET_CLASSES
+        self.means = np.array(IMAGENET_MEANS)*255
+        self.stds = np.array(IMAGENET_STDS)*255
         if distributed:
             self.setup_distributed()
         self.train_loader, self.val_loader = self.create_data_loaders()
