@@ -30,14 +30,6 @@ import connecting_neuron
 
 from spikingjelly.activation_based import neuron, functional
 
-from ffcv.pipeline.operation import Operation
-from ffcv.loader import Loader, OrderOption
-from ffcv.transforms import ToTensor, ToDevice, Squeeze, NormalizeImage, \
-    RandomHorizontalFlip, ToTorchImage
-from ffcv.fields.rgb_image import CenterCropRGBImageDecoder, \
-    RandomResizedCropRGBImageDecoder
-from ffcv.fields.basics import IntDecoder
-
 SEED=2020
 import random
 random.seed(SEED)
@@ -115,8 +107,6 @@ class Trainer:
         self.all_params = get_current_config()
         self.gpu = gpu
         self.num_classes = IMAGENET_CLASSES
-        self.means = np.array(IMAGENET_MEANS)*255
-        self.stds = np.array(IMAGENET_STDS)*255
         if distributed:
             self.setup_distributed()
         self.train_loader, self.val_loader = self.create_data_loaders()
@@ -141,7 +131,7 @@ class Trainer:
 
     def cleanup_distributed(self):
         dist.destroy_process_group()
-    '''
+    
     @param('data.num_workers')
     @param('training.batch_size')
     def _create_train_loader(self, train_set, train_sampler, num_workers, batch_size):
@@ -214,90 +204,6 @@ class Trainer:
             val_sampler = ch.utils.data.SequentialSampler(val_dataset)
 
         return self._create_train_loader(train_dataset, train_sampler), self._create_val_loader(val_dataset, val_sampler)
-        '''
-    
-    @param('data.path')
-    @param('data.num_workers')
-    @param('training.batch_size')
-    @param('dist.distributed')
-    def create_train_loader(self, path, num_workers, batch_size,
-                            distributed):
-        this_device = f'cuda:{self.gpu}'
-        train_path = os.path.join(path,'train.ffcv')
-        assert os.path.exists(train_path)
-        image_pipeline: List[Operation] = [
-            RandomResizedCropRGBImageDecoder((224, 224)),
-            RandomHorizontalFlip(),
-            ToTensor(),
-            ToDevice(ch.device(this_device), non_blocking=True),
-            ToTorchImage(),
-            NormalizeImage(self.means, self.stds, np.float16)
-        ]
-
-        label_pipeline: List[Operation] = [
-            IntDecoder(),
-            ToTensor(),
-            Squeeze(),
-            ToDevice(ch.device(this_device), non_blocking=True)
-        ]
-
-        order = OrderOption.RANDOM if distributed else OrderOption.QUASI_RANDOM
-        loader = Loader(train_path,
-                        batch_size=batch_size,
-                        num_workers=num_workers,
-                        order=order,
-                        os_cache=True,
-                        drop_last=True,
-                        pipelines={
-                            'image': image_pipeline,
-                            'label': label_pipeline
-                        },
-                        distributed=distributed)
-
-        return loader
-
-    @param('data.path')
-    @param('data.num_workers')
-    @param('validation.batch_size')
-    @param('dist.distributed')
-    def create_val_loader(self, path, num_workers, 
-                          batch_size, distributed):
-        this_device = f'cuda:{self.gpu}'
-        val_path = os.path.join(path,'val.ffcv')
-        assert(os.path.exists(val_path))
-        res_tuple = (224, 224)
-        ratio = float(224)/float(256)
-        image_pipeline = [
-            CenterCropRGBImageDecoder(res_tuple, ratio=ratio),
-            ToTensor(),
-            ToDevice(ch.device(this_device), non_blocking=True),
-            ToTorchImage(),
-            NormalizeImage(self.means, self.stds, np.float16)
-        ]
-
-        label_pipeline = [
-            IntDecoder(),
-            ToTensor(),
-            Squeeze(),
-            ToDevice(ch.device(this_device),
-            non_blocking=True)
-        ]
-
-        loader = Loader(val_path,
-                        batch_size=batch_size,
-                        num_workers=num_workers,
-                        order=OrderOption.SEQUENTIAL,
-                        os_cache=True,
-                        drop_last=False,
-                        pipelines={
-                            'image': image_pipeline,
-                            'label': label_pipeline
-                        },
-                        distributed=distributed)
-        return loader
-    
-    def create_data_loaders(self):
-        return self.create_train_loader(), self.create_val_loader()
     
     @param('model.arch')
     @param('model.block_type')
@@ -317,7 +223,6 @@ class Trainer:
             functional.set_backend(model,'cupy',instance=neuron.IFNode)
             functional.set_backend(model,'cupy',instance=connecting_neuron.ConnIFNode)
 
-        model = model.to(memory_format=ch.channels_last) #
         model = model.to(self.gpu)
 
         if distributed:
@@ -390,8 +295,8 @@ class Trainer:
         for images, target in tqdm(self.train_loader):
             start = time.time()
             self.optimizer.zero_grad(set_to_none=True)
-            #images = images.to(self.gpu, non_blocking=True).float()
-            #target = target.to(self.gpu, non_blocking=True)
+            images = images.to(self.gpu, non_blocking=True).float()
+            target = target.to(self.gpu, non_blocking=True)
             with autocast():
                 images = self.preprocess(images)
                 (output, aac) = self.model(images)
@@ -423,8 +328,8 @@ class Trainer:
             with autocast():
                 for images, target in tqdm(self.val_loader):
                     start = time.time()
-                    #images = images.to(self.gpu, non_blocking=True).float()
-                    #target = target.to(self.gpu, non_blocking=True)
+                    images = images.to(self.gpu, non_blocking=True).float()
+                    target = target.to(self.gpu, non_blocking=True)
                     images = self.preprocess(images)
                     (output, aac) = self.model(images)
                     functional.reset_net(model)
