@@ -91,10 +91,26 @@ class ConnIFNode(BaseNode):
             v_seq[t] = v
         return spike_seq, v, v_seq
     
+    def _multi_step_forward(self, x_seq: torch.Tensor, y_seq: torch.Tensor):
+        T = x_seq.shape[0]
+        z_seq = []
+        if self.store_v_seq:
+            v_seq = []
+        for t in range(T):
+            z = self.single_step_forward(x_seq[t], y_seq[t])
+            z_seq.append(z)
+            if self.store_v_seq:
+                v_seq.append(self.v)
+
+        if self.store_v_seq:
+            self.v_seq = torch.stack(v_seq)
+
+        return torch.stack(z_seq)
+    
     def multi_step_forward(self, x_seq: torch.Tensor, y_seq: torch.Tensor):
         if self.training:
             if self.backend == 'torch':
-                return super().multi_step_forward(x_seq)
+                return self._multi_step_forward(x_seq,y_seq)
             elif self.backend == 'cupy':
                 hard_reset = self.v_reset is not None
 
@@ -118,7 +134,7 @@ class ConnIFNode(BaseNode):
 
                 self.v_float_to_tensor(x_seq[0])
 
-                spike_seq, v_seq = neuron_kernel.ConnectingIFNodeATGF.apply(x_seq.flatten(1), self.v.flatten(0),
+                spike_seq, v_seq = neuron_kernel.ConnectingIFNodeATGF.apply(x_seq.flatten(1), y_seq.flatten(1), self.v.flatten(0),
                                                                      self.v_threshold, self.v_reset,
                                                                      self.forward_kernel,
                                                                      self.backward_kernel)
@@ -158,7 +174,11 @@ class ConnIFNode(BaseNode):
     def single_step_forward(self, x: torch.Tensor, y: torch.Tensor):
         if self.training:
             if self.backend == 'torch':
-                return super().single_step_forward(x)
+                self.v_float_to_tensor(x)
+                self.neuronal_charge(x,y)
+                spike = self.neuronal_fire()
+                self.neuronal_reset(spike)
+                return spike
             else:
                 raise ValueError(self.backend)
 
@@ -169,3 +189,8 @@ class ConnIFNode(BaseNode):
             else:
                 spike, self.v = self.jit_eval_single_step_forward_hard_reset(x, y, self.v, self.v_threshold, self.v_reset)
             return spike
+
+    def v_float_to_tensor(self, x: torch.Tensor):
+        if isinstance(self.v, float):
+            v_init = self.v
+            self.v = torch.full_like(x.data, v_init)
