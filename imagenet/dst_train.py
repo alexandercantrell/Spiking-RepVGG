@@ -2,18 +2,19 @@ import datetime
 import torch as ch
 from torch.cuda.amp import GradScaler
 from torch.cuda.amp import autocast
+import torch.nn.functional as F
 import torch.distributed as dist
 from torch.utils.tensorboard import SummaryWriter
 import torchmetrics
 import numpy as np
 from tqdm import tqdm
-import math
 
 import shutil
 
 import os
 import time
 import json
+from typing import List
 from argparse import ArgumentParser
 
 from fastargs import get_current_config
@@ -21,25 +22,29 @@ from fastargs.decorators import param
 from fastargs import Param, Section
 from fastargs.validation import And, OneOf
 
-from dst_models import get_model_by_name
+import torchvision
+from torchvision import transforms
 
-from spikingjelly.activation_based import neuron, functional
-from spikingjelly.datasets import cifar10_dvs
+from dst_models import get_model_by_name
 import connecting_neuron
 
+from spikingjelly.activation_based import neuron, functional
+
 SEED=2020
-import random
-random.seed(SEED)
-ch.backends.cudnn.deterministic = True
-ch.backends.cudnn.benchmark = False
+ch.backends.cudnn.benchmark = True
 ch.manual_seed(SEED)
 ch.cuda.manual_seed_all(SEED)
 np.random.seed(SEED)
 
+IMAGENET_MEANS = (0.485, 0.456, 0.406)
+IMAGENET_STDS = (0.229, 0.224, 0.225)
+IMAGENET_CLASSES = 1000
+
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
-    resume = Param(str,'checkpoint to load from',default=None),
     cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
+    resume = Param(str,'checkpoint to load from',default=None),
+    block_type = Param(str,'block type',default='spike_connecting')
 )
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
@@ -48,16 +53,15 @@ Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
 
 Section('data', 'data related stuff').params(
     path = Param(str,'path to dataset folder',required=True),
-    T=Param(int,'T',default=16),
-    num_workers=Param(int, 'The number of workers', default=4),
-    train_ratio=Param(float, 'The ratio of training set', default=0.9),
-    random_split=Param(bool, 'Whether to use random split', is_flag=True),
+    T=Param(int,'T',default=4),
+    num_workers=Param(int, 'The number of workers', default=16),
+    cache_dataset=Param(bool,'cache dataset',is_flag=True),
 )
 
 Section('lr','lr scheduling').params(
-    lr=Param(float,'',default=0.01),
-    eta_min=Param(float,'',default=0.0)
-) 
+    lr=Param(float,'',default=0.1),
+    eta_min=Param(float,'',default=0.0),
+)
 
 Section('logging', 'how to log stuff').params(
     folder=Param(str, 'log location', default='./logs/'),
@@ -66,18 +70,17 @@ Section('logging', 'how to log stuff').params(
 )
 
 Section('validation', 'Validation parameters stuff').params(
-    batch_size=Param(int, 'The validation batch size for validation', default=16),
+    batch_size=Param(int, 'The validation batch size for validation', default=32),
     eval_only=Param(bool,'only perform evaluation',is_flag=True)
 )
 
 Section('optim','optimizer hyper params').params(
     momentum=Param(float, 'SGD momentum', default=0.9),
-    weight_decay=Param(float, 'weight decay', default=0.0),
 )
 
 Section('training', 'training hyper param stuff').params(
-    batch_size=Param(int, 'The training batch size', default=16),
-    epochs=Param(int, 'number of epochs', default=64),
+    batch_size=Param(int, 'The training batch size', default=32),
+    epochs=Param(int, 'number of epochs', default=320),
 )
 
 Section('dist', 'distributed training options').params(
@@ -87,25 +90,34 @@ Section('dist', 'distributed training options').params(
     distributed=Param(bool, 'use distributed mode', is_flag=True),
 )
 
+def _get_cache_path(filepath):
+    import hashlib
+    h = hashlib.sha1(filepath.encode()).hexdigest()
+    cache_path = os.path.join("~", ".torch", "vision", "datasets", "imagefolder", h[:10] + ".pt")
+    cache_path = os.path.expanduser(cache_path)
+    return cache_path
+
 class Trainer:
     @param('dist.distributed')
     @param('model.resume')
     def __init__(self, gpu, distributed, resume=None):
         self.all_params = get_current_config()
         self.gpu = gpu
-        self.num_classes = 10
+
         if distributed:
             self.setup_distributed()
-        self.train_loader, self.val_loader = self.create_data_loaders()
+        self.set_dataset_stats()
+        self.train_loader = self.create_train_loader()
+        self.val_loader = self.create_val_loader()
         self.model, self.scaler = self.create_model_and_scaler()
-        self.start_epoch = 0
+        self.start_epoch=0
         self.max_accuracy=-1
         if resume is not None:
             self.load_checkpoint()
         self.create_optimizer()
         self.create_scheduler()
         self.initialize_logger()
-    
+        
     @param('dist.address')
     @param('dist.port')
     @param('dist.world_size')
@@ -119,75 +131,97 @@ class Trainer:
     def cleanup_distributed(self):
         dist.destroy_process_group()
 
-    @param('data.train_ratio')
-    @param('data.random_split')
-    def _split_train_val(self,dataset,train_ratio, random_split=False):
-        label_idx = [[] for _ in range(self.num_classes)]
-        for idx, item in enumerate(dataset):
-            y = item[1]
-            if isinstance(y, np.ndarray) or isinstance(y,ch.Tensor):
-                y = y.item()
-            label_idx[y].append(idx)
-        train_idx = []
-        val_idx = []
-        if random_split:
-            for idx in range(self.num_classes):
-                np.random.shuffle(label_idx[idx])
-        for idx in range(self.num_classes):
-            pos = math.ceil(label_idx[idx].__len__()*train_ratio)
-            train_idx.extend(label_idx[idx][0:pos])
-            val_idx.extend(label_idx[idx][pos:label_idx[idx].__len__()])
-        return ch.utils.data.Subset(dataset, train_idx), ch.utils.data.Subset(dataset, val_idx)
-
     @param('data.num_workers')
     @param('training.batch_size')
-    def _create_train_loader(self, train_set, num_workers, batch_size):
-        train_loader = ch.utils.data.DataLoader(
+    def _create_train_loader(self, train_set, train_sampler, num_workers, batch_size):
+        return ch.utils.data.DataLoader(
             train_set,
             batch_size=batch_size,
-            shuffle=True,
+            sampler=train_sampler,
             num_workers=num_workers,
-            pin_memory=True,
-            drop_last=True,
+            pin_memory=True
         )
-        return train_loader
     
     @param('data.num_workers')
     @param('validation.batch_size')
-    def _create_val_loader(self, val_set, num_workers, batch_size):
-        val_loader = ch.utils.data.DataLoader(
+    def _create_val_loader(self, val_set, val_sampler, num_workers, batch_size):
+        return ch.utils.data.DataLoader(
             val_set,
             batch_size=batch_size,
-            shuffle=False,
+            sampler=val_sampler,
             num_workers=num_workers,
-            pin_memory=True,
-            drop_last=False,
+            pin_memory=True
         )
-        return val_loader
 
     @param('data.path')
-    @param('data.T')
-    def create_data_loaders(self,path,T):
-        dataset = cifar10_dvs.CIFAR10DVS(path, data_type='frame',frames_number=T,split_by='number')
-        train_set, val_set = self._split_train_val(dataset)
-        train_loader = self._create_train_loader(train_set)
-        val_loader = self._create_val_loader(val_set)
-        return train_loader, val_loader
-    
+    @param('data.cache_dataset')
+    def create_data_loaders(self, path, cache_dataset, distributed):
+        normalize = transforms.Normalize(mean=IMAGENET_MEANS, std=IMAGENET_STDS)
+
+        train_path = os.path.join(path, 'train')
+        cache_path = _get_cache_path(train_path)
+        if cache_dataset and os.path.exists(cache_path):
+            train_dataset, _ = ch.load(cache_path)
+        else:
+            train_dataset = torchvision.datasets.ImageFolder(
+                train_path,
+                transforms.Compose([
+                    transforms.RandomResizedCrop(224),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    normalize,
+                ]))
+            if cache_dataset:
+                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+                if self.gpu==0:
+                    ch.save((train_dataset, train_path), cache_path)
+
+        val_path = os.path.join(path, 'val')
+        cache_path = _get_cache_path(val_path)
+        if cache_dataset and os.path.exists(cache_path):
+            val_dataset, _ = ch.load(cache_path)
+        else:
+            val_dataset = torchvision.datasets.ImageFolder(
+                val_path,
+                transforms.Compose([
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                    normalize,
+                ]))
+            if cache_dataset:
+                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+                if self.gpu==0:
+                    ch.save((val_dataset, val_path), cache_path)
+
+        if distributed:
+            train_sampler = ch.utils.data.distributed.DistributedSampler(train_dataset)
+            val_sampler = ch.utils.data.distributed.DistributedSampler(val_dataset)
+        else:
+            train_sampler = ch.utils.data.RandomSampler(train_dataset)
+            val_sampler = ch.utils.data.SequentialSampler(val_dataset)
+
+        return self._create_train_loader(train_dataset, train_sampler), self._create_val_loader(val_dataset, val_sampler)
+
     @param('model.arch')
+    @param('model.block_type')
     @param('model.cupy')
+    @param('data.T')
     @param('dist.distributed')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, cupy, distributed,  sync_bn=None):
+    def create_model_and_scaler(self, arch, block_type, cupy, T, distributed, sync_bn=None):
         scaler = GradScaler()
         
         arch=arch.lower()
-        model = get_model_by_name(arch)(num_classes=self.num_classes)
-        functional.set_step_mode(model,'m')
+        model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type)
+        if T>0:
+            functional.set_step_mode(model,'m')
+        else:
+            functional.set_step_mode(model,'s')
         if cupy:
-            functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
-            functional.set_backend(model,'cupy',instance=connecting_neuron.ParaConnLIFNode)
-            functional.set_backend(model,'cupy',instance=connecting_neuron.SpikeParaConnLIFNode)
+            functional.set_backend(model,'cupy',instance=neuron.IFNode)
+            functional.set_backend(model,'cupy',instance=connecting_neuron.ConnIFNode)
+
         model = model.to(self.gpu)
 
         if distributed:
@@ -198,29 +232,23 @@ class Trainer:
     
     @param('lr.lr')
     @param('optim.momentum')
-    @param('optim.weight_decay')
-    def create_optimizer(self, lr, momentum, weight_decay):
+    def create_optimizer(self, lr, momentum):
         # Only do weight decay on non-batchnorm parameters
-        all_params = list(self.model.named_parameters())
-        print(f"Total number of parameters: {len(all_params)}")
-        bn_params = [v for k, v in all_params if ('bn' in k) or ('.bias' in k)]
-        print(f"Number of batchnorm parameters: {len(bn_params)}")
-        other_params = [v for k, v in all_params if not ('bn' in k) and not ('.bias' in k)]
-        print(f"Number of non-batchnorm parameters: {len(other_params)}")
-        param_groups = [{
-            'params': bn_params,
-            'weight_decay': 0.
-        }, {
-            'params': other_params,
-            'weight_decay': weight_decay
-        }]
-        self.optimizer = ch.optim.SGD(param_groups, lr=lr, momentum=momentum)
+        self.optimizer = ch.optim.SGD(self.model.parameters(), lr=lr, momentum=momentum)
         self.loss = ch.nn.CrossEntropyLoss()
+
 
     @param('training.epochs')
     @param('lr.eta_min')
-    def create_scheduler(self,epochs,eta_min):
+    def create_scheduler(self, epochs, eta_min):
         self.lr_scheduler = ch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer,T_max=epochs,eta_min=eta_min,last_epoch=self.start_epoch-1)
+
+    @param('data.T')
+    def preprocess(self,x,T):
+        if T > 0:
+            return x.unsqueeze(1).repeat(T,1,1,1,1)
+        else:
+            return x
 
     @param('training.epochs')
     def train(self, epochs):
@@ -269,6 +297,7 @@ class Trainer:
             images = images.to(self.gpu, non_blocking=True).float()
             target = target.to(self.gpu, non_blocking=True)
             with autocast():
+                images = self.preprocess(images)
                 (output, aac) = self.model(images)
                 loss_train = self.loss(output, target) + self.loss(aac, target)
             self.scaler.scale(loss_train).backward()
@@ -276,6 +305,7 @@ class Trainer:
             self.scaler.update()
             functional.reset_net(model)
             end = time.time()
+
             output=output.detach()
             target=target.detach()
             self.meters['top_1'](output,target)
@@ -288,7 +318,8 @@ class Trainer:
         [meter.reset() for meter in self.meters.values()]
         return stats
 
-    def val_loop(self):
+    @param('validation.lr_tta')
+    def val_loop(self, lr_tta):
         model = self.model
         model.eval()
 
@@ -298,14 +329,16 @@ class Trainer:
                     start = time.time()
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
+                    images = self.preprocess(images)
                     (output, aac) = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
                     self.meters['top_1'](output, target)
                     self.meters['top_5'](output, target)
                     batch_size = target.shape[0]
+                    if lr_tta: batch_size*=2
                     self.meters['thru'](ch.tensor(batch_size/(end-start)))
-                    loss_val = self.loss(output,target)
+                    loss_val = self.loss(output, target)
                     self.meters['loss'](loss_val)
 
         stats = {k: m.compute().item() for k, m in self.meters.items()}
@@ -315,9 +348,9 @@ class Trainer:
     @param('logging.folder')
     @param('logging.tag')
     @param('model.arch')
-    @param('lr.lr')
+    @param('model.block_type')
     @param('logging.clean')
-    def initialize_logger(self, folder, tag, arch, lr,clean=None):
+    def initialize_logger(self, folder, tag, arch, block_type, clean=None):
         self.meters = {
             'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False).to(self.gpu),
             'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False, top_k=5).to(self.gpu),
@@ -326,7 +359,7 @@ class Trainer:
         }
 
         if self.gpu == 0:
-            folder = os.path.join(folder,'cifar10_dvs',arch,tag)
+            folder = os.path.join(folder,'imagenet',arch,block_type,tag)
             if os.path.exists(folder) and clean:
                 shutil.rmtree(folder)
             os.makedirs(folder,exist_ok=True)
