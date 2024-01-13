@@ -23,7 +23,7 @@ class SpikeRepVGGBBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride, groups=1):
         super(SpikeRepVGGBBlock, self).__init__()
         self.identity = stride == 1 and in_channels == out_channels
-        self.conv3x3 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, groups=groups,padding=1, bias=False),
+        self.conv3x3 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, groups=groups,padding=1, bias=False)
         self.bn3x3 = layer.BatchNorm2d(out_channels)
         self.conv1x1 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, groups=groups, padding=0, bias=False)
         self.bn = layer.BatchNorm2d(out_channels)
@@ -52,7 +52,7 @@ class SpikeConnRepVGGBlock(nn.Module):
         super(SpikeConnRepVGGBlock, self).__init__()
         self.identity = stride == 1 and in_channels == out_channels
 
-        self.conv3x3 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, groups=groups, padding=1, bias=False),
+        self.conv3x3 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, groups=groups, padding=1, bias=False)
         self.bn3x3 = layer.BatchNorm2d(out_channels)
         self.conv1x1 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, groups=groups, padding=0, bias=False)
         self.bn = layer.BatchNorm2d(out_channels)
@@ -101,7 +101,7 @@ class SRepVGG(nn.Module):
         self.convs = convs
 
         self.avgpool = layer.AdaptiveAvgPool2d((1,1))
-        self.flatten = layer.Flatten(2)
+        self.flatten = nn.Flatten(2)
         self.fc = layer.Linear(in_channels, num_classes)
         self.aac = layer.Linear(in_channels, num_classes)
 

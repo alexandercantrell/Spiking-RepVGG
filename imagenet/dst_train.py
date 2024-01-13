@@ -39,7 +39,10 @@ from ffcv.fields.rgb_image import CenterCropRGBImageDecoder, \
 from ffcv.fields.basics import IntDecoder
 
 SEED=2020
-ch.backends.cudnn.benchmark = True
+import random
+random.seed(SEED)
+ch.backends.cudnn.deterministic = True
+ch.backends.cudnn.benchmark = False
 ch.manual_seed(SEED)
 ch.cuda.manual_seed_all(SEED)
 np.random.seed(SEED)
@@ -111,12 +114,10 @@ class Trainer:
     def __init__(self, gpu, distributed, resume=None):
         self.all_params = get_current_config()
         self.gpu = gpu
-
+        self.num_classes = IMAGENET_CLASSES
         if distributed:
             self.setup_distributed()
-        self.set_dataset_stats()
-        self.train_loader = self.create_train_loader()
-        self.val_loader = self.create_val_loader()
+        self.train_loader, self.val_loader = self.create_data_loaders()
         self.model, self.scaler = self.create_model_and_scaler()
         self.start_epoch=0
         self.max_accuracy=-1
@@ -163,6 +164,7 @@ class Trainer:
 
     @param('data.path')
     @param('data.cache_dataset')
+    @param('dist.distributed')
     def create_data_loaders(self, path, cache_dataset, distributed):
         normalize = transforms.Normalize(mean=IMAGENET_MEANS, std=IMAGENET_STDS)
 
@@ -304,7 +306,6 @@ class Trainer:
     def create_model_and_scaler(self, arch, block_type, cupy, T, distributed, sync_bn=None):
         scaler = GradScaler()
         
-        arch=arch.lower()
         model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type)
         if T>0:
             functional.set_step_mode(model,'m')
@@ -339,7 +340,7 @@ class Trainer:
     @param('data.T')
     def preprocess(self,x,T):
         if T > 0:
-            return x.unsqueeze(1).repeat(T,1,1,1,1)
+            return x.unsqueeze(0).repeat(T,1,1,1,1)
         else:
             return x
 
