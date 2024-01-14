@@ -41,6 +41,7 @@ Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
     resume = Param(str,'checkpoint to load from',default=None),
     cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
+    block_type = Param(str,'block type',default='spike_connecting'),
 )
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
@@ -166,14 +167,15 @@ class Trainer:
         return loader
 
     @param('model.arch')
+    @param('model.block_type')
     @param('model.cupy')
     @param('dist.distributed')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, cupy, distributed, sync_bn=None):
+    def create_model_and_scaler(self, arch, block_type, cupy, distributed, sync_bn=None):
         scaler = GradScaler()
         
         arch=arch.lower()
-        model = get_model_by_name(arch)(num_classes=self.num_classes)
+        model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type)
         functional.set_step_mode(model,'m')
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
@@ -192,21 +194,7 @@ class Trainer:
     @param('optim.momentum')
     @param('optim.weight_decay')
     def create_optimizer(self, lr, momentum, weight_decay):
-        # Only do weight decay on non-batchnorm parameters
-        all_params = list(self.model.named_parameters())
-        print(f"Total number of parameters: {len(all_params)}")
-        bn_params = [v for k, v in all_params if ('bn' in k) or ('.bias' in k)]
-        print(f"Number of batchnorm parameters: {len(bn_params)}")
-        other_params = [v for k, v in all_params if not ('bn' in k) and not ('.bias' in k)]
-        print(f"Number of non-batchnorm parameters: {len(other_params)}")
-        param_groups = [{
-            'params': bn_params,
-            'weight_decay': 0.
-        }, {
-            'params': other_params,
-            'weight_decay': weight_decay
-        }]
-        self.optimizer = ch.optim.SGD(param_groups, lr=lr, momentum=momentum)
+        self.optimizer = ch.optim.SGD(self.model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
         self.loss = ch.nn.CrossEntropyLoss()
 
 
@@ -300,7 +288,6 @@ class Trainer:
                     (output, aac) = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
-
                     self.meters['top_1'](output, target)
                     self.meters['top_5'](output, target)
                     batch_size = target.shape[0]
@@ -315,9 +302,9 @@ class Trainer:
     @param('logging.folder')
     @param('logging.tag')
     @param('model.arch')
-    @param('lr.lr')
+    @param('model.block_type')
     @param('logging.clean')
-    def initialize_logger(self, folder, tag, arch, lr, clean=None):
+    def initialize_logger(self, folder, tag, arch, block_type, clean=None):
         self.meters = {
             'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False).to(self.gpu),
             'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False, top_k=5).to(self.gpu),
@@ -326,7 +313,7 @@ class Trainer:
         }
 
         if self.gpu == 0:
-            folder = os.path.join(folder,'dvsgesture',arch,tag)
+            folder = os.path.join(folder,'dvsgesture',arch,block_type,tag)
             if os.path.exists(folder) and clean:
                 shutil.rmtree(folder)
             os.makedirs(folder,exist_ok=True)

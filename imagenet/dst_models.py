@@ -19,9 +19,9 @@ def convrelupxp(in_channels, out_channels, stride=1):
             nn.ReLU()
         )
     
-class SpikeRepVGGBBlock(nn.Module):
+class SpikeRepVGGBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride, groups=1):
-        super(SpikeRepVGGBBlock, self).__init__()
+        super(SpikeRepVGGBlock, self).__init__()
         self.identity = stride == 1 and in_channels == out_channels
         self.conv3x3 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, groups=groups,padding=1, bias=False)
         self.bn3x3 = layer.BatchNorm2d(out_channels)
@@ -83,7 +83,7 @@ class SRepVGG(nn.Module):
     def __init__(self, cfg_dict, num_classes):
         super(SRepVGG, self).__init__()
         if cfg_dict['block_type'] == 'spike':
-            self.block = SpikeRepVGGBBlock
+            self.block = SpikeRepVGGBlock
         elif cfg_dict['block_type'] == 'spike_connecting':
             self.block = SpikeConnRepVGGBlock
         else:

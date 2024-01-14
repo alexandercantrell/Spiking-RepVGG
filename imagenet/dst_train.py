@@ -79,6 +79,7 @@ Section('validation', 'Validation parameters stuff').params(
 
 Section('optim','optimizer hyper params').params(
     momentum=Param(float, 'SGD momentum', default=0.9),
+    weight_decay = Param(float, 'weight decay', default=0.0),
 )
 
 Section('training', 'training hyper param stuff').params(
@@ -233,9 +234,9 @@ class Trainer:
     
     @param('lr.lr')
     @param('optim.momentum')
-    def create_optimizer(self, lr, momentum):
-        # Only do weight decay on non-batchnorm parameters
-        self.optimizer = ch.optim.SGD(self.model.parameters(), lr=lr, momentum=momentum)
+    @param('optim.weight_decay')
+    def create_optimizer(self, lr, momentum, weight_decay):
+        self.optimizer = ch.optim.SGD(self.model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
         self.loss = ch.nn.CrossEntropyLoss()
 
 
