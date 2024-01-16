@@ -103,7 +103,7 @@ class SpikeRepVGGBlock(nn.Module):
         kernel, bias = self.get_equivalent_kernel_bias()
         self.reparam = layer.Conv2d(in_channels=self.in_channels, out_channels=self.out_channels, 
                                     kernel_size=3, stride=self.stride, 
-                                    padding=1, groups=self.groups, bias=True)
+                                    padding=1, groups=self.groups, bias=True, step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
         for para in self.parameters():
@@ -204,11 +204,11 @@ class SpikeConnRepVGGBlock(nn.Module):
         kernel, bias = self.get_equivalent_kernel_bias()
         self.reparam = layer.Conv2d(in_channels=self.in_channels, out_channels=self.out_channels, 
                                     kernel_size=3, stride=self.stride, 
-                                    padding=1, groups=self.groups, bias=True)
+                                    padding=1, groups=self.groups, bias=True, step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
         w = self.sn.w.data
-        self.sn = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.sn = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.sn.w.data = w
         for para in self.parameters():
             para.detach_()
