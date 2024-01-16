@@ -25,6 +25,7 @@ from dst_models import get_model_by_name
 
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import cifar10_dvs
+from sysops import get_model_complexity_info
 import connecting_neuron
 
 SEED=2020
@@ -235,6 +236,14 @@ class Trainer:
         train_time = time.time()-start_train
         train_time_str = str(datetime.timedelta(seconds=int(train_time)))
         self.log(f'Training time {train_time_str}')
+        self.log(f'Max accuracy {self.max_accuracy}')
+        self.calculate_complexity()
+
+    def calculate_complexity(self):
+        self.model.switch_to_deploy()
+        ops, params = get_model_complexity_info(self.model, (2, 128, 128), self.val_loader, as_strings=True,
+                                                 print_per_layer_stat=True, verbose=True)
+        self.log(f"Model complexity: {ops}, {params}")
 
     def eval_and_log(self):
         start_val = time.time()
