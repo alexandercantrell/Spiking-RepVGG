@@ -259,6 +259,7 @@ class SRepVGG(nn.Module):
         return convs
     
     def forward(self, x: torch.Tensor):
+        x = x.permute(1,0,2,3,4)
         if self.deploy:
             out = self.convs(x)
             out = self.avgpool(out)
