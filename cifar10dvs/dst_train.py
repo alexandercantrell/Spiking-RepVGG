@@ -25,7 +25,7 @@ from dst_models import get_model_by_name
 
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import cifar10_dvs
-from sysops import get_model_complexity_info
+from syops import get_model_complexity_info
 import connecting_neuron
 
 SEED=2020
@@ -184,13 +184,11 @@ class Trainer:
     def create_model_and_scaler(self, arch, cupy, block_type, distributed,  sync_bn=None):
         scaler = GradScaler()
         
-        arch=arch.lower()
         model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type)
         functional.set_step_mode(model,'m')
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
             functional.set_backend(model,'cupy',instance=connecting_neuron.ParaConnLIFNode)
-            functional.set_backend(model,'cupy',instance=connecting_neuron.SpikeParaConnLIFNode)
         model = model.to(self.gpu)
 
         if distributed:

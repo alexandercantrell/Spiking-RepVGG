@@ -13,7 +13,7 @@ from fastargs.validation import And, OneOf
 from dst_models import get_model_by_name
 from spikingjelly.datasets import cifar10_dvs
 
-from sysops import get_model_complexity_info
+from syops import get_model_complexity_info
 
 SEED=2020
 import random
