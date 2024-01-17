@@ -26,6 +26,7 @@ from dst_models import get_model_by_name
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import cifar10_dvs
 from syops import get_model_complexity_info
+from ops import MODULES_MAPPING
 import connecting_neuron
 
 SEED=2020
@@ -240,7 +241,7 @@ class Trainer:
     def calculate_complexity(self):
         self.model.switch_to_deploy()
         ops, params = get_model_complexity_info(self.model, (2, 128, 128), self.val_loader, as_strings=True,
-                                                 print_per_layer_stat=True, verbose=True)
+                                                 print_per_layer_stat=True, verbose=True, custom_modules_hooks=MODULES_MAPPING)
         self.log(f"Model complexity: {ops}, {params}")
 
     def eval_and_log(self):
