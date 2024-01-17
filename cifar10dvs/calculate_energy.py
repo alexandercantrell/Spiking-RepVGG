@@ -12,7 +12,7 @@ from fastargs.validation import And, OneOf
 
 from dst_models import get_model_by_name
 from spikingjelly.datasets import cifar10_dvs
-
+from ops import MODULES_MAPPING
 from syops import get_model_complexity_info
 
 SEED=2020
@@ -82,12 +82,13 @@ def create_data_loader(path, T, num_workers, batch_size):
 def main(path):
     with open(os.path.join(path, 'params.json'), 'r') as params_file:
         params = json.load(params_file)
-    val_loader = create_data_loader()
-    model=create_model(params['model.arch'], params['model.block_type'], os.path.join(path, 'pt', 'best_checkpoint.pt'))
-    ops, params = get_model_complexity_info(model, (2, 128, 128), val_loader, as_strings=True,
-                                                 print_per_layer_stat=True, verbose=True)
+    with ch.cuda.device(0):
+        val_loader = create_data_loader()
+        model=create_model(params['model.arch'], params['model.block_type'], os.path.join(path, 'pt', 'best_checkpoint.pt'))
+        ops, num_params = get_model_complexity_info(model, (2, 128, 128), val_loader, as_strings=True,
+                                                 print_per_layer_stat=True, verbose=True, custom_modules_hooks=MODULES_MAPPING)
     print('ops: ', ops)
-    print('params: ', params)
+    print('num_params: ', num_params)
     
 
 def make_config(quiet=False):
