@@ -106,7 +106,7 @@ def conv_syops_counter_hook(module, input, output):
         output = output[0]
     spike, rate = spike_rate(input)
     
-    if not module.hasattr('step_mode') or module.step_mode == 's': #check for if torch.nn conv or if step mode is set to 's'
+    if not hasattr(module,'step_mode') or module.step_mode == 's': #check for if torch.nn conv or if step mode is set to 's'
         batch_size = input.shape[0]
     elif module.step_mode == 'm':
         batch_size = input.shape[0] * input.shape[1] #T * batch_size
