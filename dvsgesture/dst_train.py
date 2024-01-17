@@ -175,7 +175,6 @@ class Trainer:
     def create_model_and_scaler(self, arch, block_type, cupy, distributed, sync_bn=None):
         scaler = GradScaler()
         
-        arch=arch.lower()
         model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type)
         functional.set_step_mode(model,'m')
         if cupy:
