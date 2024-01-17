@@ -283,7 +283,7 @@ class SRepVGG(nn.Module):
         for layer in self.convs:
             if hasattr(layer, 'switch_to_deploy'):
                 layer.switch_to_deploy()
-        if hasattr(self,aac):
+        if hasattr(self,'aac'):
             self.__delattr__('aac')
         self.deploy = True
 
