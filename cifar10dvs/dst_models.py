@@ -106,8 +106,8 @@ class SpikeRepVGGBlock(nn.Module):
                                     padding=1, groups=self.groups, bias=True, step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
-        for para in self.parameters():
-            para.detach_()
+        #for para in self.parameters(): #commented out for syops param count
+        #    para.detach_()
         self.__delattr__('conv3x3')
         self.__delattr__('conv1x1')
         self.__delattr__('bn3x3')
@@ -210,8 +210,8 @@ class SpikeConnRepVGGBlock(nn.Module):
         w = self.sn.w.data
         self.sn = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.sn.w.data = w
-        for para in self.parameters():
-            para.detach_()
+        #for para in self.parameters(): #commented out for syops param count
+        #    para.detach_()
         self.__delattr__('conv3x3')
         self.__delattr__('conv1x1')
         self.__delattr__('bn3x3')
@@ -289,11 +289,11 @@ def SRepVGG_N0(num_classes, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
-            {'channels': 64, 'num_blocks': 2, 'stride': 2},
-            {'channels': 64, 'num_blocks': 2, 'stride': 2},
-            {'channels': 64, 'num_blocks': 2, 'stride': 2},
-            {'channels': 64, 'num_blocks': 2, 'stride': 2},
-            {'channels': 64, 'num_blocks': 2, 'stride': 2},
+            {'channels': 32, 'num_blocks': 1, 'stride': 2},
+            {'channels': 32, 'num_blocks': 6, 'stride': 2},
+            {'channels': 32, 'num_blocks': 6, 'stride': 2},
+            {'channels': 32, 'num_blocks': 5, 'stride': 2},
+            {'channels': 32, 'num_blocks': 1, 'stride': 2},
         ],
     }
     return SRepVGG(cfg_dict, num_classes)
