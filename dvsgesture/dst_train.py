@@ -371,14 +371,14 @@ class Trainer:
             self.log(f"Saved checkpoint to: {path}")
 
     def save_latest(self,epoch):
-        path = os.path.join(self.pt_folder,"latest_checkpoint.pth")
+        path = os.path.join(self.pt_folder,"latest_checkpoint.pt")
         self._save_checkpoint(path,epoch)
 
     def save_checkpoint(self,epoch, is_best=False):
         if is_best:
-            path = os.path.join(self.pt_folder,"best_checkpoint.pth")
+            path = os.path.join(self.pt_folder,"best_checkpoint.pt")
         else:
-            path = os.path.join(self.checkpoint_folder,f"checkpoint_{epoch}.pth")
+            path = os.path.join(self.checkpoint_folder,f"checkpoint_{epoch}.pt")
         self._save_checkpoint(path,epoch)
 
 
@@ -386,15 +386,15 @@ class Trainer:
     def get_checkpoint_path(self,resume):
         file_name = os.path.splitext(os.path.basename(resume))[0]
         if resume == 'latest':
-            path = os.path.join(self.pt_folder,'latest_checkpoint.pth')
+            path = os.path.join(self.pt_folder,'latest_checkpoint.pt')
         elif resume == 'best':
-            path = os.path.join(self.pt_folder,'best_checkpoint.pth')
+            path = os.path.join(self.pt_folder,'best_checkpoint.pt')
         elif os.path.exists(resume):
             path = resume
-        elif os.path.exists(os.path.join(self.pt_folder,f'{file_name}.pth')):
-            path = os.path.join(self.pt_folder,f'{file_name}.pth')
-        elif os.path.exists(os.path.join(self.checkpoint_folder,f'{file_name}.pth')):
-            path = os.path.join(self.checkpoint_folder,f'{file_name}.pth')
+        elif os.path.exists(os.path.join(self.pt_folder,f'{file_name}.pt')):
+            path = os.path.join(self.pt_folder,f'{file_name}.pt')
+        elif os.path.exists(os.path.join(self.checkpoint_folder,f'{file_name}.pt')):
+            path = os.path.join(self.checkpoint_folder,f'{file_name}.pt')
         else:
             raise FileNotFoundError(f"Cannot find given reserved word, path, or file: {resume}")
         return path
