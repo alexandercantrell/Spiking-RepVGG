@@ -239,6 +239,7 @@ class Trainer:
         self.calculate_complexity()
 
     def calculate_complexity(self):
+        self.model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
         self.model.switch_to_deploy()
         ops, params = get_model_complexity_info(self.model, (2, 128, 128), self.val_loader, as_strings=True,
                                                  print_per_layer_stat=True, verbose=True, custom_modules_hooks=MODULES_MAPPING)
