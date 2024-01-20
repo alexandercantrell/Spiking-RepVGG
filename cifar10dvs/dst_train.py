@@ -21,7 +21,8 @@ from fastargs.decorators import param
 from fastargs import Param, Section
 from fastargs.validation import And, OneOf
 
-from dst_models import get_model_by_name
+from dst_models import model_dict as repvgg_model_dict
+from dst_resnet import model_dict as resnet_model_dict
 
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import cifar10_dvs
@@ -44,6 +45,8 @@ Section('model', 'model details').params(
     resume = Param(str,'checkpoint to load from',default=None),
     cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     block_type = Param(str,'block type',default='spike_connecting'),
+    dsnn = Param(bool,'use dsnn',is_flag=True),
+    cnf = Param(str,'cnf',default=None),
 )
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
@@ -182,11 +185,15 @@ class Trainer:
     @param('model.block_type')
     @param('model.cupy')
     @param('dist.distributed')
+    @param('model.dsnn')
+    @param('model.cnf')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, cupy, block_type, distributed,  sync_bn=None):
+    def create_model_and_scaler(self, arch, cupy, block_type, distributed, cnf=None, dsnn=False, sync_bn=None):
         scaler = GradScaler()
-        
-        model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type)
+        if arch in repvgg_model_dict:
+            model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type)
+        elif arch in resnet_model_dict:
+            model = resnet_model_dict[arch](num_classes=self.num_classes,block_type=block_type, cnf=cnf, dsnn=dsnn)
         functional.set_step_mode(model,'m')
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
@@ -312,11 +319,15 @@ class Trainer:
                     (output, aac) = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
+                    if hasattr(self.model,'dsnn') and self.model.dsnn:
+                        loss_val = self.loss(output,target) + self.loss(aac,target)
+                        output = output + aac
+                    else:
+                        loss_val = self.loss(output,target)
                     self.meters['top_1'](output, target)
                     self.meters['top_5'](output, target)
                     batch_size = target.shape[0]
                     self.meters['thru'](ch.tensor(batch_size/(end-start)))
-                    loss_val = self.loss(output,target)
                     self.meters['loss'](loss_val)
 
         stats = {k: m.compute().item() for k, m in self.meters.items()}
