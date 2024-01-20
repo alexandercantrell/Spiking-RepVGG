@@ -239,11 +239,16 @@ class Trainer:
         self.syops_count = ops
         self.params_count = params
         self.total_energy = (ops[1]*0.9 + ops[2]*4.6)*1e-9
-        self.log(f'Total Syops: {syops_to_string(ops[0],units="G",precision=2)}')
-        self.log(f'AC Ops: {syops_to_string(ops[1],units="G",precision=2)}')
-        self.log(f'MAC Ops: {syops_to_string(ops[2],units="G",precision=2)}')
-        self.log(f'Total Energy: {self.total_energy} mJ')
-        self.log(f'Params: {params_to_string(params,units="M",precision=2)}')
+        self.energy_string = f'{self.total_energy} mJ'
+        self.syops_string = f'{syops_to_string(ops[0],units="G Ops",precision=2)}'
+        self.ac_ops_string = f'{syops_to_string(ops[1],units="G Ops",precision=2)}'
+        self.mac_ops_string = f'{syops_to_string(ops[2],units="G Ops",precision=2)}'
+        self.params_string = f'{params_to_string(params,units="M",precision=2)}'
+        self.log(f'Total Syops: {self.syops_string}')
+        self.log(f'AC Ops: {self.ac_ops_string}')
+        self.log(f'MAC Ops: {self.mac_ops_string}')
+        self.log(f'Total Energy: {self.energy_string}')
+        self.log(f'Params: {self.params_string}')
 
     def eval_and_log(self):
         start_val = time.time()
@@ -370,6 +375,11 @@ class Trainer:
             'syops_count': self.syops_count,
             'params_count': self.params_count,
             'total_energy': self.total_energy,
+            'energy_string': self.energy_string,
+            'syops_string': self.syops_string,
+            'ac_ops_string': self.ac_ops_string,
+            'mac_ops_string': self.mac_ops_string,
+            'params_string': self.params_string,
             'max_accuracy': self.max_accuracy,
         }
         if self.gpu==0:
