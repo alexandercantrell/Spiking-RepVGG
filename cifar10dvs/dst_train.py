@@ -26,6 +26,7 @@ from dst_models import get_model_by_name
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import cifar10_dvs
 from syops import get_model_complexity_info
+from syops.utils import syops_to_string, params_to_string
 from ops import MODULES_MAPPING
 import connecting_neuron
 
@@ -237,13 +238,21 @@ class Trainer:
         self.log(f'Training time {train_time_str}')
         self.log(f'Max accuracy {self.max_accuracy}')
         self.calculate_complexity()
+        self._save_results()
 
     def calculate_complexity(self):
         self.model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
         self.model.switch_to_deploy()
-        ops, params = get_model_complexity_info(self.model, (2, 128, 128), self.val_loader, as_strings=True,
+        ops, params = get_model_complexity_info(self.model, (2, 128, 128), self.val_loader, as_strings=False,
                                                  print_per_layer_stat=True, verbose=True, custom_modules_hooks=MODULES_MAPPING)
-        self.log(f"Model complexity: {ops}, {params}")
+        self.syops_count = ops
+        self.params_count = params
+        self.total_energy = (ops[1]*0.9 + ops[2]*4.6)*1e-9
+        self.log(f'Total Syops: {syops_to_string(ops[0],units="G",precision=2)}')
+        self.log(f'AC Ops: {syops_to_string(ops[1],units="G",precision=2)}')
+        self.log(f'MAC Ops: {syops_to_string(ops[2],units="G",precision=2)}')
+        self.log(f'Total Energy: {self.total_energy} mJ')
+        self.log(f'Params: {params_to_string(params,units="M",precision=2)}')
 
     def eval_and_log(self):
         start_val = time.time()
@@ -355,6 +364,20 @@ class Trainer:
         with open(os.path.join(self.log_folder, 'log'), 'a+') as fd:
             fd.write(content + '\n')
             fd.flush()
+
+    @param('dist.distributed')
+    def _save_results(self, distributed):
+        if distributed:
+            dist.barrier()
+        results = {
+            'syops_count': self.syops_count,
+            'params_count': self.params_count,
+            'total_energy': self.total_energy,
+            'max_accuracy': self.max_accuracy,
+        }
+        if self.gpu==0:
+            with open(os.path.join(self.log_folder, 'results.json'), 'w+') as handle:
+                json.dump(results, handle)
 
     @param('dist.distributed')
     def _save_checkpoint(self,path,epoch,distributed):
