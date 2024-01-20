@@ -372,7 +372,7 @@ class Trainer:
         if distributed:
             dist.barrier()
         results = {
-            'syops_count': self.syops_count,
+            'syops_count': self.syops_count.tolist(),
             'params_count': self.params_count,
             'total_energy': self.total_energy,
             'energy_string': self.energy_string,
