@@ -542,7 +542,7 @@ class S7BNet(nn.Module):
 
         with torch.no_grad():
             x=torch.zeros(1,1,128,128)
-            for m in self.conv.modules():
+            for m in self.convs.modules():
                 if isinstance(m, DSTMaxPool2dBlock):
                     x = m(x)
             x = x[0] if isinstance(x, tuple) else x
