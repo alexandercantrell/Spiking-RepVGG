@@ -47,7 +47,7 @@ class AACBlock(nn.Module):
         if self.deploy:
             return
         kernel, bias = self._fuse_bn_tensor(self.conv, self.bn)
-        self.reparam = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=1, bias=True)
+        self.reparam = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=1, bias=True, step_mode=self.conv.step_mode).to(self.conv.weight.device)
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
         self.__delattr__('conv')
@@ -124,8 +124,8 @@ class DSTUpChannelBlock(nn.Module):
         kernel, bias = self._fuse_bn_tensor(self.conv.conv, self.conv.bn)
         self.reparam = nn.Sequential(
             OrderedDict([
-                ('conv', layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=1, bias=True)),
-                ('sn', neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan()))
+                ('conv', layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=1, bias=True, step_mode=self.conv.conv.step_mode).to(self.conv.conv.weight.device)),
+                ('sn', neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv.sn.step_mode).to(self.conv.conv.weight.device))
             ])
         )
         self.reparam.conv.weight.data = kernel
@@ -142,7 +142,7 @@ class DSTMaxPool2dBlock(nn.Module):
     def __init__(self, k_pool, dsnn=False):
         super(DSTMaxPool2dBlock, self).__init__()
         self.k_pool = k_pool
-        self.pool = nn.MaxPool2d(k_pool)
+        self.pool = layer.MaxPool2d(k_pool)
         self.dsnn = dsnn
     
     def forward(self, x):
@@ -241,22 +241,22 @@ class SpikeResNetBlock(nn.Module):
         if self.deploy:
             return
         kernel1, bias1 = self._fuse_bn_tensor(self.conv1, self.bn1)
-        self.reparam_conv1 = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=3, stride=self.stride, groups=self.groups, padding=1, bias=True)
+        self.reparam_conv1 = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=3, stride=self.stride, groups=self.groups, padding=1, bias=True, step_mode=self.conv1.step_mode).to(self.conv1.weight.device)
         self.reparam_conv1.weight.data = kernel1
         self.reparam_conv1.bias.data = bias1
 
         kernel2, bias2 = self._fuse_bn_tensor(self.conv2, self.bn2)
-        self.reparam_conv2 = layer.Conv2d(self.out_channels, self.out_channels, kernel_size=3, stride=1, groups=self.groups, padding=1, bias=True)
+        self.reparam_conv2 = layer.Conv2d(self.out_channels, self.out_channels, kernel_size=3, stride=1, groups=self.groups, padding=1, bias=True, step_mode=self.conv2.step_mode).to(self.conv2.weight.device)
         self.reparam_conv2.weight.data = kernel2
         self.reparam_conv2.bias.data = bias2
 
         if not self.identity:
             kernel3, bias3 = self._fuse_bn_tensor(self.skip.conv, self.skip.bn)
-            self.reparam_skip = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=self.stride, bias=True)
+            self.reparam_skip = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=self.stride, bias=True, step_mode=self.skip.conv.step_mode).to(self.skip.conv.weight.device)
             self.reparam_skip.weight.data = kernel3
             self.reparam_skip.bias.data = bias3
         else:
-            self.reparam_skip = nn.Identity()
+            self.reparam_skip = nn.Identity().to(self.conv1.weight.device)
 
         if not self.dsnn:
             self.__delattr__('aac')
@@ -362,22 +362,22 @@ class SpikeConnResNetBlock(nn.Module):
         if self.deploy:
             return
         kernel1, bias1 = self._fuse_bn_tensor(self.conv1, self.bn1)
-        self.reparam_conv1 = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=3, stride=self.stride, groups=self.groups, padding=1, bias=True)
+        self.reparam_conv1 = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=3, stride=self.stride, groups=self.groups, padding=1, bias=True, step_mode=self.conv1.step_mode).to(self.conv1.weight.device)
         self.reparam_conv1.weight.data = kernel1
         self.reparam_conv1.bias.data = bias1
 
         kernel2, bias2 = self._fuse_bn_tensor(self.conv2, self.bn2)
-        self.reparam_conv2 = layer.Conv2d(self.out_channels, self.out_channels, kernel_size=3, stride=1, groups=self.groups, padding=1, bias=True)
+        self.reparam_conv2 = layer.Conv2d(self.out_channels, self.out_channels, kernel_size=3, stride=1, groups=self.groups, padding=1, bias=True, step_mode=self.conv2.step_mode).to(self.conv2.weight.device)
         self.reparam_conv2.weight.data = kernel2
         self.reparam_conv2.bias.data = bias2
 
         if not self.identity:
             kernel3, bias3 = self._fuse_bn_tensor(self.skip.conv, self.skip.bn)
-            self.reparam_skip = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=self.stride, bias=True)
+            self.reparam_skip = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=self.stride, bias=True, step_mode=self.skip.conv.step_mode).to(self.skip.conv.weight.device)
             self.reparam_skip.weight.data = kernel3
             self.reparam_skip.bias.data = bias3
         else:
-            self.reparam_skip = nn.Identity()
+            self.reparam_skip = nn.Identity().to(self.conv1.weight.device)
 
         if not self.dsnn:
             self.__delattr__('aac')
@@ -483,12 +483,12 @@ class SEWResNetBlock(nn.Module):
         if self.deploy:
             return
         kernel1, bias1 = self._fuse_bn_tensor(self.conv1, self.bn1)
-        self.reparam_conv1 = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=3, stride=self.stride, groups=self.groups, padding=1, bias=True)
+        self.reparam_conv1 = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=3, stride=self.stride, groups=self.groups, padding=1, bias=True, step_mode=self.conv1.step_mode).to(self.conv1.weight.device)
         self.reparam_conv1.weight.data = kernel1
         self.reparam_conv1.bias.data = bias1
 
         kernel2, bias2 = self._fuse_bn_tensor(self.conv2, self.bn2)
-        self.reparam_conv2 = layer.Conv2d(self.out_channels, self.out_channels, kernel_size=3, stride=1, groups=self.groups, padding=1, bias=True)
+        self.reparam_conv2 = layer.Conv2d(self.out_channels, self.out_channels, kernel_size=3, stride=1, groups=self.groups, padding=1, bias=True, step_mode=self.conv2.step_mode).to(self.conv2.weight.device)
         self.reparam_conv2.weight.data = kernel2
         self.reparam_conv2.bias.data = bias2
 
@@ -496,15 +496,15 @@ class SEWResNetBlock(nn.Module):
             kernel3, bias3 = self._fuse_bn_tensor(self.skip.conv, self.skip.bn)
             self.reparam_skip = nn.Sequential(
                 OrderedDict([
-                    ('conv', layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=self.stride, bias=True)),
-                    ('sn', neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan()))
+                    ('conv', layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=self.stride, bias=True, step_mode=self.skip.conv.step_mode).to(self.skip.conv.weight.device)),
+                    ('sn', neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.skip.sn.step_mode).to(self.skip.conv.weight.device))
                 ])
             )
             self.reparam_skip.conv.weight.data = kernel3
             self.reparam_skip.conv.bias.data = bias3
             self.reparam_skip.sn.w.data = self.skip.sn.w.data
         else:
-            self.reparam_skip = nn.Identity()
+            self.reparam_skip = nn.Identity().to(self.conv1.weight.device)
 
         if not self.dsnn:
             self.__delattr__('aac')
