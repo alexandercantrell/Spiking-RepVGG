@@ -248,7 +248,7 @@ class Trainer:
         self.syops_count = ops
         self.params_count = params
         self.total_energy = (ops[1]*0.9 + ops[2]*4.6)*1e-9
-        self.energy_string = f'{self.total_energy} mJ'
+        self.energy_string = f'{round(self.total_energy,2)} mJ'
         self.syops_string = f'{syops_to_string(ops[0],units="G Ops",precision=2)}'
         self.ac_ops_string = f'{syops_to_string(ops[1],units="G Ops",precision=2)}'
         self.mac_ops_string = f'{syops_to_string(ops[2],units="G Ops",precision=2)}'
