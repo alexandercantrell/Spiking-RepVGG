@@ -26,7 +26,7 @@ from dst_models import get_model_by_name
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import dvs128_gesture
 from syops import get_model_complexity_info
-from syops import syops_to_string, params_to_string
+from syops.utils import syops_to_string, params_to_string
 from ops import MODULES_MAPPING
 import connecting_neuron
 
