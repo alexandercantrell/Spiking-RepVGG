@@ -618,6 +618,7 @@ def get_7BNet_wide(num_classes, block_type='sew',cnf=None,deploy=False, dsnn=Fal
             {'channels':128, 'num_blocks':1, 'k_pool':2},
         ]
     }
+    return S7BNet(cfg_dict, num_classes, deploy=deploy, dsnn=dsnn)
 
 model_dict = {
     '7BNet': get_7BNet,
