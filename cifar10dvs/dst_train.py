@@ -190,9 +190,9 @@ class Trainer:
     @param('model.sync_bn')
     def create_model_and_scaler(self, arch, cupy, block_type, distributed, cnf=None, dsnn=False, sync_bn=None):
         scaler = GradScaler()
-        if arch in repvgg_model_dict:
+        if arch in repvgg_model_dict.keys():
             model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type)
-        elif arch in resnet_model_dict:
+        elif arch in resnet_model_dict.keys():
             model = resnet_model_dict[arch](num_classes=self.num_classes,block_type=block_type, cnf=cnf, dsnn=dsnn)
         else:
             raise NotImplementedError(f"Model {arch} not implemented")
