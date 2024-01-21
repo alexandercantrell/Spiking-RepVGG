@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_neuron import ConnIFNode
 
@@ -18,7 +19,7 @@ def convrelupxp(in_channels, out_channels, stride=1):
             layer.BatchNorm2d(out_channels),
             nn.ReLU()
         )
-    
+
 class SpikeRepVGGBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride, groups=1, deploy=False):
         super(SpikeRepVGGBlock, self).__init__()
@@ -35,29 +36,24 @@ class SpikeRepVGGBlock(nn.Module):
             self.bn3x3 = layer.BatchNorm2d(out_channels)
             self.conv1x1 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, groups=groups, padding=0, bias=False)
             self.bn = layer.BatchNorm2d(out_channels)
-            if not self.identity:
+            if self.identity:
+                self.aac = nn.Identity()
+            else:
                 self.aac = convrelupxp(in_channels, out_channels, stride)
         self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
 
     def forward(self, x):
-        x, y = x
         if self.deploy:
-            return self.sn(self.reparam(x)), None
+            return self.sn(self.reparam(x))
         else:
+            x, y = x
             out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
-            if self.identity:
-                if y is not None:
-                    y = y + out
-                elif self.training:
-                    y = out
-                out = out + x
-            else:
-                if y is not None:
-                    y = self.aac(y) + out
-                elif self.training:
-                    y = out
+            if y is not None:
+                y = self.aac(y) + out
+            elif self.training:
+                y = out
             return self.sn(out), y
-
+        
     def get_equivalent_kernel_bias(self):
         kernel3x3, bias3x3 = self._fuse_bn_tensor(self.conv3x3, self.bn3x3)
         kernel = kernel3x3 + self._pad_1x1_to_3x3_tensor(self.conv1x1.weight)
@@ -102,17 +98,16 @@ class SpikeRepVGGBlock(nn.Module):
         kernel, bias = self.get_equivalent_kernel_bias()
         self.reparam = layer.Conv2d(in_channels=self.in_channels, out_channels=self.out_channels, 
                                     kernel_size=3, stride=self.stride, 
-                                    padding=1, groups=self.groups, bias=True)
+                                    padding=1, groups=self.groups, bias=True, step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
-        for para in self.parameters():
-            para.detach_()
+        #for para in self.parameters(): #commented out for syops param count
+        #    para.detach_()
         self.__delattr__('conv3x3')
         self.__delattr__('conv1x1')
         self.__delattr__('bn3x3')
         self.__delattr__('bn')
-        if hasattr(self, 'aac'):
-            self.__delattr__('aac')
+        self.__delattr__('aac')
         self.deploy=True
     
 class SpikeConnRepVGGBlock(nn.Module):
@@ -133,30 +128,26 @@ class SpikeConnRepVGGBlock(nn.Module):
             self.conv1x1 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, groups=groups, padding=0, bias=False)
             self.bn = layer.BatchNorm2d(out_channels)
             if self.identity:
+                self.aac = nn.Identity()
                 self.sn = ConnIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
             else:
                 self.aac = convrelupxp(in_channels, out_channels, stride)
                 self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
             
     def forward(self, x):
-        x, y = x
         if self.deploy:
-            return self.sn(self.reparam(x)), None
+            return self.sn(self.reparam(x))
         else:
+            x, y = x
             out = self.bn(self.conv1x1(x) + self.bn3x3(self.conv3x3(x)))
+            if y is not None:
+                y = self.aac(y) + out
+            elif self.training:
+                y = out
             if self.identity:
-                if y is not None:
-                    y = y + out
-                elif self.training:
-                    y = out
-                out = self.sn(out, x)
+                return self.sn(out, x), y
             else:
-                if y is not None:
-                    y = self.aac(y) + out
-                elif self.training:
-                    y = out
-                out = self.sn(out)
-            return out, y
+                return self.sn(out), y
     
     def get_equivalent_kernel_bias(self):
         kernel3x3, bias3x3 = self._fuse_bn_tensor(self.conv3x3, self.bn3x3)
@@ -203,20 +194,19 @@ class SpikeConnRepVGGBlock(nn.Module):
         kernel, bias = self.get_equivalent_kernel_bias()
         self.reparam = layer.Conv2d(in_channels=self.in_channels, out_channels=self.out_channels, 
                                     kernel_size=3, stride=self.stride, 
-                                    padding=1, groups=self.groups, bias=True)
+                                    padding=1, groups=self.groups, bias=True, step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
         w = self.sn.w.data
-        self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.sn.w.data = w
-        for para in self.parameters():
-            para.detach_()
+        #for para in self.parameters(): #commented out for syops param count
+        #    para.detach_()
         self.__delattr__('conv3x3')
         self.__delattr__('conv1x1')
         self.__delattr__('bn3x3')
         self.__delattr__('bn')
-        if hasattr(self, 'aac'):
-            self.__delattr__('aac')
+        self.__delattr__('aac')
         self.deploy=True
 
 class SRepVGG(nn.Module):
@@ -244,7 +234,8 @@ class SRepVGG(nn.Module):
         self.avgpool = layer.AdaptiveAvgPool2d((1,1))
         self.flatten = nn.Flatten(2)
         self.fc = layer.Linear(in_channels, num_classes)
-        self.aac = layer.Linear(in_channels, num_classes)
+        if not self.deploy:
+            self.aac = layer.Linear(in_channels, num_classes)
 
     def _build_layer(self, in_channels, layer_dict):
         channels = layer_dict['channels']
@@ -274,6 +265,7 @@ class SRepVGG(nn.Module):
         for layer in self.convs:
             if hasattr(layer, 'switch_to_deploy'):
                 layer.switch_to_deploy()
+        self.__delattr__('aac')
         self.deploy = True
     
 optional_groupwise_layers = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26]

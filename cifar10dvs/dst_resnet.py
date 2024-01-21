@@ -81,7 +81,7 @@ class DSTUpChannelBlock(nn.Module):
                     ('sn', neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan()))
                 ])
             )
-            if in_channels != out_channels:
+            if in_channels == out_channels:
                 self.aac = nn.Identity()
             else:
                 self.aac = AACBlock(in_channels, out_channels)

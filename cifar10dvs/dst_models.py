@@ -234,7 +234,8 @@ class SRepVGG(nn.Module):
         self.avgpool = layer.AdaptiveAvgPool2d((1,1))
         self.flatten = nn.Flatten(2)
         self.fc = layer.Linear(in_channels, num_classes)
-        self.aac = layer.Linear(in_channels, num_classes)
+        if not self.deploy:
+            self.aac = layer.Linear(in_channels, num_classes)
 
     def _build_layer(self, in_channels, layer_dict):
         channels = layer_dict['channels']
@@ -272,8 +273,7 @@ class SRepVGG(nn.Module):
         for layer in self.convs:
             if hasattr(layer, 'switch_to_deploy'):
                 layer.switch_to_deploy()
-        if hasattr(self,'aac'):
-            self.__delattr__('aac')
+        self.__delattr__('aac')
         self.deploy = True
 
 def SRepVGG_N0(num_classes, block_type='spike_connecting'):
