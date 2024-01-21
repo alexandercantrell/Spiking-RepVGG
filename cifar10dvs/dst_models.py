@@ -20,6 +20,57 @@ def convrelupxp(in_channels, out_channels, stride=1):
             nn.ReLU()
         )
 
+class Scaling1x1Block(nn.Module):
+    def __init__(self, in_channels, out_channels, deploy=False):
+        super(Scaling1x1Block, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.deploy = deploy
+        if deploy:
+            self.reparam = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, bias=True)
+        else:
+            self.conv1x1 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+            self.bn = layer.BatchNorm2d(out_channels)
+        self.sn = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
+
+    def forward(self, x):
+        if self.deploy:
+            return self.sn(self.reparam(x))
+        else:
+            x, y = x
+            y = out = self.bn(self.conv1x1(x))
+            return self.sn(out), y
+        
+    def get_equivalent_kernel_bias(self):
+        kernel, bias = self._fuse_bn_tensor(self.conv1x1, self.bn)
+        return kernel, bias
+    
+    def _fuse_bn_tensor(self, conv, bn):
+        kernel = conv.weight
+        running_mean = bn.running_mean
+        running_var = bn.running_var
+        gamma = bn.weight
+        beta = bn.bias
+        eps = bn.eps
+        std = torch.sqrt(running_var + eps)
+        t = (gamma / std).reshape(-1, 1, 1, 1)
+        return kernel * t, beta - running_mean * gamma / std
+    
+    def switch_to_deploy(self):
+        if hasattr(self, 'reparam'):
+            return
+        kernel, bias = self.get_equivalent_kernel_bias()
+        self.reparam = layer.Conv2d(in_channels=self.in_channels, out_channels=self.out_channels, 
+                                    kernel_size=1, stride=1, 
+                                    padding=0, bias=True, step_mode=self.conv1x1.step_mode).to(self.conv1x1.weight.device)
+        self.reparam.weight.data = kernel
+        self.reparam.bias.data = bias
+        #for para in self.parameters(): #commented out for syops param count
+        #    para.detach_()
+        self.__delattr__('conv1x1')
+        self.__delattr__('bn')
+        self.deploy=True
+
 class SpikeRepVGGBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride, groups=1, deploy=False):
         super(SpikeRepVGGBlock, self).__init__()
@@ -210,7 +261,7 @@ class SpikeConnRepVGGBlock(nn.Module):
         self.deploy=True
 
 class SRepVGG(nn.Module):
-    def __init__(self, cfg_dict, num_classes, deploy=False):
+    def __init__(self, cfg_dict, num_classes, deploy=False, scaling1x1=False):
         super(SRepVGG, self).__init__()
         self.deploy = deploy
         if cfg_dict['block_type'] == 'spike':
@@ -226,6 +277,9 @@ class SRepVGG(nn.Module):
         in_channels=2
         layer_list = cfg_dict['layers']
         convs = nn.Sequential()
+        if scaling1x1:
+            convs.append(Scaling1x1Block(in_channels, layer_list[0]['channels'], deploy=deploy))
+            in_channels = layer_list[0]['channels']
         for layer_dict in layer_list:
             convs.extend(self._build_layer(in_channels, layer_dict))
             in_channels = layer_dict['channels']
@@ -302,9 +356,37 @@ def SRepVGG_N1(num_classes, block_type='spike_connecting'):
     }
     return SRepVGG(cfg_dict, num_classes)
 
+def SRepVGG_N0_Sc1x1(num_classes, block_type='spike_connecting'):
+    cfg_dict = {
+        'block_type': block_type,
+        'layers': [
+            #{'channels': 32, 'num_blocks': 1, 'stride': 1},
+            {'channels': 32, 'num_blocks': 6, 'stride': 1},
+            {'channels': 32, 'num_blocks': 6, 'stride': 2},
+            {'channels': 32, 'num_blocks': 5, 'stride': 2},
+            {'channels': 32, 'num_blocks': 1, 'stride': 2},
+        ],
+    }
+    return SRepVGG(cfg_dict, num_classes, scaling1x1=True)
+
+def SRepVGG_N1_Sc1x1(num_classes, block_type='spike_connecting'):
+    cfg_dict = {
+        'block_type': block_type,
+        'layers': [
+            #{'channels': 64, 'num_blocks': 1, 'stride': 1},
+            {'channels': 64, 'num_blocks': 6, 'stride': 1},
+            {'channels': 64, 'num_blocks': 6, 'stride': 2},
+            {'channels': 128, 'num_blocks': 5, 'stride': 2},
+            {'channels': 128, 'num_blocks': 1, 'stride': 2},
+        ],
+    }
+    return SRepVGG(cfg_dict, num_classes, scaling1x1=True)
+
 model_dict = {
     'SRepVGG_N0': SRepVGG_N0,
     'SRepVGG_N1': SRepVGG_N1,
+    'SRepVGG_N0_Sc1x1': SRepVGG_N0_Sc1x1,
+    'SRepVGG_N1_Sc1x1': SRepVGG_N1_Sc1x1,
 }
 
 def get_model_by_name(name):
