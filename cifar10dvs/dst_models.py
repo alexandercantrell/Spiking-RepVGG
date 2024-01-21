@@ -38,7 +38,9 @@ class Scaling1x1Block(nn.Module):
             return self.sn(self.reparam(x))
         else:
             x, y = x
-            y = out = self.bn(self.conv1x1(x))
+            out = self.bn(self.conv1x1(x))
+            if self.training:
+                y = out
             return self.sn(out), y
         
     def get_equivalent_kernel_bias(self):
