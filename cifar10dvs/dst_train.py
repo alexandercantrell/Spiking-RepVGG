@@ -194,6 +194,8 @@ class Trainer:
             model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type)
         elif arch in resnet_model_dict:
             model = resnet_model_dict[arch](num_classes=self.num_classes,block_type=block_type, cnf=cnf, dsnn=dsnn)
+        else:
+            raise NotImplementedError(f"Model {arch} not implemented")
         functional.set_step_mode(model,'m')
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
