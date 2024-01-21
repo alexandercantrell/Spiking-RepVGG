@@ -8,6 +8,19 @@ from spikingjelly.activation_based import surrogate
 import neuron_kernel
 
 class ConnIFNode(BaseNode):
+    '''
+    ***NOTE: This neuron is currently broken, but for v_thresh=1 we can use the normal Spiking Resnet instead.***
+    Connecting Integrate-and-Fire (LIF) Neuron:
+    This neuron moves the connecting function from outside to inside the neuron. In this way, we are able to 
+    circumvent the problem of applying Spiking Resnet to Integrate-and-Fire (LIF) Neurons. 
+    The formulation of this neuron is as follows:
+        v(t+1) = v(t) + x(t) + s(t) * v(thres)
+        o(t) = 1 if v(t) >= v(thres) else 0
+        v(t+1) = v(reset) if o(t) == 1 else v(t+1)
+    Where v(t) is the membrane potential at time t, v(thres) is the threshold potential, v(reset) is the reset
+    potential, s(t) is the spike of the previous layer at time t, x(t) is the input at time t, w(t) is the 
+    weight at time t, and o(t) is the output spike at time t. The weight w(t) is a learnable parameter.
+    '''
     def __init__(self, v_threshold: float = 1., v_reset: float = 0.,
                 surrogate_function: Callable = surrogate.Sigmoid(), detach_reset: bool = False, step_mode='s',
                 backend='torch', store_v_seq: bool = False):

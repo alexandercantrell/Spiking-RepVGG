@@ -15,7 +15,7 @@ class ParaConnLIFNode(BaseNode):
     This neuron moves the connecting function from outside to inside the neuron. In this way, we are able to 
     circumvent the problem of applying Spiking Resnet to Parametric Leaky Integrate-and-Fire (LIF) Neurons. 
     The formulation of this neuron is as follows:
-        v(t+1) = (v(t) + s(t)*(v(thres)-v(t)) + (x(t) - (v(t)-s(t)*v(t))) * w(t)
+        v(t+1) = v(t) + (x(t) - v(t)) * w(t) + s(t) * v(thres)
         o(t) = 1 if v(t) >= v(thres) else 0
         v(t+1) = v(reset) if o(t) == 1 else v(t+1)
     Where v(t) is the membrane potential at time t, v(thres) is the threshold potential, v(reset) is the reset
