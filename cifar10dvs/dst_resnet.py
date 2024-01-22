@@ -379,6 +379,10 @@ class SpikeConnResNetBlock(nn.Module):
         else:
             self.reparam_skip = nn.Identity().to(self.conv1.weight.device)
 
+        w = self.sn2.w.data
+        self.sn2 = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.sn2.step_mode).to(self.conv1.weight.device)
+        self.sn2.w.data = w
+
         if not self.dsnn:
             self.__delattr__('aac')
         else:
