@@ -394,10 +394,8 @@ class RepSCSBlock(nn.Module):
 
         block = Rep1x1 if conv_kernel == 1 else Rep3x3
         blocks = nn.Sequential()
-        if num_convs>0:
-            blocks.append(block(in_channels, out_channels, deploy=deploy))
-            for _ in range(num_convs - 1):
-                blocks.append(block(out_channels, out_channels, deploy=deploy))
+        for _ in range(num_convs):
+            blocks.append(block(out_channels, out_channels, deploy=deploy))
         self.blocks = blocks
 
     def forward(self, x):
