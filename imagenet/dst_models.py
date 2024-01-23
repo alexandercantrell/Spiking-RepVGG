@@ -156,7 +156,7 @@ class SpikeConnRepVGGBlock(nn.Module):
         kernel, bias = self._fuse_extra_bn_tensor(kernel, bias, self.bn)
 
         if self.identity:
-            identity_value = self.sn.v_threshold
+            identity_value = self.sn.y_multiplier
             input_dim = self.in_channels // self.groups
             id_tensor = torch.zeros((self.in_channels, input_dim, 3, 3), dtype=kernel.dtype, device=kernel.device)
             for i in range(self.in_channels):

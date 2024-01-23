@@ -27,6 +27,10 @@ class ConnIFNode(BaseNode):
             super().__init__(v_threshold, v_reset, surrogate_function, detach_reset, step_mode, backend, store_v_seq)
 
     @property
+    def y_multiplier(self):
+        return self.v_threshold
+
+    @property
     def supported_backends(self):
         if self.step_mode == 's':
             return ('torch')

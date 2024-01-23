@@ -33,6 +33,13 @@ class ParaConnLIFNode(BaseNode):
         self.w = nn.Parameter(torch.as_tensor(init_w))
 
     @property
+    def y_multiplier(self):
+        if self.decay_input:
+            return self.v_threshold/self.w.sigmoid()
+        else:
+            return self.v_threshold
+
+    @property
     def supported_backends(self):
         if self.step_mode == 's':
             return ('torch',)
