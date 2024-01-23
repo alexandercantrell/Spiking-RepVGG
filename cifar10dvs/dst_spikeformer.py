@@ -274,16 +274,16 @@ class RepSSA(nn.Module):
         else:
             x, y = x
             T, B, C, H, W = x.shape
-            x.flatten(3)
+            qkv_x = x.flatten(3)
             N = H * W
 
-            q = self.q_sn(self.q_bn(self.q_conv(x)))
+            q = self.q_sn(self.q_bn(self.q_conv(qkv_x)))
             q = q.transpose(-1,-2).reshape(T,B, N, self.num_heads, C//self.num_heads).permute(0,1,3,2,4).contiguous()
 
-            k = self.k_sn(self.k_bn(self.k_conv(x)))
+            k = self.k_sn(self.k_bn(self.k_conv(qkv_x)))
             k = k.transpose(-1,-2).reshape(T,B, N, self.num_heads, C//self.num_heads).permute(0,1,3,2,4).contiguous()
 
-            v = self.v_sn(self.v_bn(self.v_conv(x)))
+            v = self.v_sn(self.v_bn(self.v_conv(qkv_x)))
             v = v.transpose(-1,-2).reshape(T,B, N, self.num_heads, C//self.num_heads).permute(0,1,3,2,4).contiguous()
 
             out = k.transpose(-2,-1) @ v
