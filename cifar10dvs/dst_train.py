@@ -23,6 +23,7 @@ from fastargs.validation import And, OneOf
 
 from dst_models import model_dict as repvgg_model_dict
 from dst_resnet import model_dict as resnet_model_dict
+from dst_spikeformer import model_dict as spikeformer_model_dict
 
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import cifar10_dvs
@@ -194,6 +195,8 @@ class Trainer:
             model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type)
         elif arch in resnet_model_dict.keys():
             model = resnet_model_dict[arch](num_classes=self.num_classes,block_type=block_type, cnf=cnf, dsnn=dsnn)
+        elif arch in spikeformer_model_dict.keys():
+            model = spikeformer_model_dict[arch](num_classes=self.num_classes)
         else:
             raise NotImplementedError(f"Model {arch} not implemented")
         functional.set_step_mode(model,'m')
