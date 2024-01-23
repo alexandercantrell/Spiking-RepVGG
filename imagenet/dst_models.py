@@ -156,7 +156,7 @@ class SpikeConnRepVGGBlock(nn.Module):
         kernel, bias = self._fuse_extra_bn_tensor(kernel, bias, self.bn)
 
         if self.identity:
-            identity_value = self.sn.v_threshold/self.sn.w.sigmoid()
+            identity_value = self.sn.v_threshold
             input_dim = self.in_channels // self.groups
             id_tensor = torch.zeros((self.in_channels, input_dim, 3, 3), dtype=kernel.dtype, device=kernel.device)
             for i in range(self.in_channels):
@@ -197,9 +197,7 @@ class SpikeConnRepVGGBlock(nn.Module):
                                     padding=1, groups=self.groups, bias=True, step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
-        w = self.sn.w.data
         self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
-        self.sn.w.data = w
         #for para in self.parameters(): #commented out for syops param count
         #    para.detach_()
         self.__delattr__('conv3x3')
@@ -249,15 +247,22 @@ class SRepVGG(nn.Module):
         return convs
     
     def forward(self, x: torch.Tensor):
-        x,y = self.convs((x,None))
-        x = self.avgpool(x)
-        x = self.flatten(x)
-        x = self.fc(x.mean(0))
-        if y is not None:
-            y = self.avgpool(y)
-            y = self.flatten(y)
-            y = self.aac(y.mean(0))
-        return x,y
+        if self.deploy:
+            out = self.convs(x)
+            out = self.avgpool(out)
+            out = self.flatten(out)
+            out = self.fc(out.mean(0))
+            return out
+        else:
+            x,y = self.convs((x,None))
+            x = self.avgpool(x)
+            x = self.flatten(x)
+            x = self.fc(x.mean(0))
+            if y is not None:
+                y = self.avgpool(y)
+                y = self.flatten(y)
+                y = self.aac(y.mean(0))
+            return x,y
     
     def switch_to_deploy(self):
         if self.deploy:
