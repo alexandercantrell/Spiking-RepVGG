@@ -252,16 +252,16 @@ class RepSSA(nn.Module):
     def forward(self, x):
         if self.deploy:
             T, B, C, H, W = x.shape
-            x.flatten(3)
+            qkv_x = x.flatten(3)
             N = H * W
 
-            q = self.q_sn(self.q_reparam(x))
+            q = self.q_sn(self.q_reparam(qkv_x))
             q = q.transpose(-1,-2).reshape(T,B, N, self.num_heads, C//self.num_heads).permute(0,1,3,2,4).contiguous()
 
-            k = self.k_sn(self.k_reparam(x))
+            k = self.k_sn(self.k_reparam(qkv_x))
             k = k.transpose(-1,-2).reshape(T,B, N, self.num_heads, C//self.num_heads).permute(0,1,3,2,4).contiguous()
 
-            v = self.v_sn(self.v_reparam(x))
+            v = self.v_sn(self.v_reparam(qkv_x))
             v = v.transpose(-1,-2).reshape(T,B, N, self.num_heads, C//self.num_heads).permute(0,1,3,2,4).contiguous()
 
             out = k.transpose(-2,-1) @ v
