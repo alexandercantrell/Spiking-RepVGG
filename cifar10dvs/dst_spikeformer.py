@@ -482,7 +482,7 @@ class RepSpikeFormer(nn.Module):
             RepEncoderBlock(embed_dims, num_heads, mlp_depth, mlp_kernel=mlp_kernel, deploy=deploy) for mlp_depth in mlp_depths
         ])
         self.fc = layer.Linear(embed_dims, num_classes, bias=True) if num_classes > 0 else nn.Identity()
-        if self.deploy:
+        if not self.deploy:
             self.aac = layer.Linear(embed_dims, num_classes, bias=True) if num_classes > 0 else nn.Identity()
         self.apply(self._init_weights)
 
