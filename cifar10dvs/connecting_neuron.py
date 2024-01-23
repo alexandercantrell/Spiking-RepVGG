@@ -348,7 +348,11 @@ class ConnLIFNode(BaseNode):
     def single_step_forward(self, x: torch.Tensor, y: torch.Tensor):
         if self.training:
             if self.backend == 'torch':
-                return super().single_step_forward(x, y)
+                self.v_float_to_tensor(x)
+                self.neuronal_charge(x,y)
+                spike = self.neuronal_fire()
+                self.neuronal_reset(spike)
+                return spike
         else:
             self.v_float_to_tensor(x)
             if self.v_reset is None:
@@ -371,10 +375,26 @@ class ConnLIFNode(BaseNode):
                                                                                                 self.tau)
             return spike
 
+    def _multi_step_forward(self, x_seq: torch.Tensor, y_seq: torch.Tensor):
+        T = x_seq.shape[0]
+        z_seq = []
+        if self.store_v_seq:
+            v_seq = []
+        for t in range(T):
+            z = self.single_step_forward(x_seq[t], y_seq[t])
+            z_seq.append(z)
+            if self.store_v_seq:
+                v_seq.append(self.v)
+
+        if self.store_v_seq:
+            self.v_seq = torch.stack(v_seq)
+
+        return torch.stack(z_seq)
+
     def multi_step_forward(self, x_seq: torch.Tensor, y_seq: torch.Tensor):
         if self.training:
             if self.backend == 'torch':
-                return super().multi_step_forward(x_seq, y_seq)
+                return self._multi_step_forward(x_seq, y_seq)
             elif self.backend == 'cupy':
 
                 hard_reset = self.v_reset is not None
