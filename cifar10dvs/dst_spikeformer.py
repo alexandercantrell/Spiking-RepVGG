@@ -268,7 +268,7 @@ class RepSSA(nn.Module):
             out = (q @ out) * self.scale
 
             out = out.transpose(3,4).reshape(T,B,C,N).contiguous()
-            out = self.attn_lif(out)
+            out = self.attn_sn(out)
             out = self.proj_sn(self.proj_reparam(out).reshape(T,B,C,H,W),x)
             return out
         else:
