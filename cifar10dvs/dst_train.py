@@ -107,7 +107,6 @@ Section('augment', 'augmentation options').params(
     mixup_prob=Param(float, 'mixup_prob', default=0.5),
     mixup_switch_prob=Param(float, 'mixup_switch_prob', default=0.5),
     mixup_mode=Param(str, 'mixup_mode', default='batch'),
-    mixup_off_epoch=Param(int, 'mixup_off_epoch', default=0),
 )
 
 class Trainer:
@@ -235,8 +234,7 @@ class Trainer:
     @param('augment.mixup_prob')
     @param('augment.mixup_switch_prob')
     @param('augment.mixup_mode')
-    @param('augment.mixup_off_epoch')
-    def create_augmentation(self, enable_augmentation, smoothing, mixup, cutmix, cutmix_minmax, mixup_prob, mixup_switch_prob, mixup_mode, mixup_off_epoch):
+    def create_augmentation(self, enable_augmentation, smoothing, mixup, cutmix, cutmix_minmax, mixup_prob, mixup_switch_prob, mixup_mode):
         if enable_augmentation:
             self.train_snn_aug = transforms.Compose([
                 transforms.RandomHorizontalFlip(p=0.5)
