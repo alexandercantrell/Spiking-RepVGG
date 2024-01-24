@@ -82,7 +82,7 @@ Section('validation', 'Validation parameters stuff').params(
 )
 
 Section('optim','optimizer hyper params').params(
-    optimizer=Param(OneOf(['sgd','adam']),'optimizer',default='sgd'),
+    optimizer=Param(OneOf(['sgd','adamw']),'optimizer',default='sgd'),
     momentum=Param(float, 'momentum', default=0.9),
     weight_decay=Param(float, 'weight decay', default=0.0),
     eps=Param(float, 'eps', default=1e-8),
@@ -265,8 +265,8 @@ class Trainer:
     def create_optimizer(self, lr, optimizer, momentum, weight_decay, eps, betas=None):
         if optimizer == 'sgd':
             self.optimizer = ch.optim.SGD(self.model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
-        elif optimizer == 'adam':
-            self.optimizer = ch.optim.Adam(self.model.parameters(), lr=lr, weight_decay=weight_decay, eps=eps, betas=betas)
+        elif optimizer == 'adamw':
+            self.optimizer = ch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=weight_decay, eps=eps, betas=betas)
         else:
             raise NotImplementedError(f"Optimizer {optimizer} not implemented")
         self.loss = ch.nn.CrossEntropyLoss()
