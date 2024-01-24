@@ -230,11 +230,11 @@ class Trainer:
     @param('augment.smoothing')
     @param('augment.mixup')
     @param('augment.cutmix')
-    @param('augment.cutmix_minmax')
     @param('augment.mixup_prob')
     @param('augment.mixup_switch_prob')
     @param('augment.mixup_mode')
-    def create_augmentation(self, enable_augmentation, smoothing, mixup, cutmix, cutmix_minmax, mixup_prob, mixup_switch_prob, mixup_mode):
+    @param('augment.cutmix_minmax')
+    def create_augmentation(self, enable_augmentation, smoothing, mixup, cutmix, mixup_prob, mixup_switch_prob, mixup_mode, cutmix_minmax=None):
         if enable_augmentation:
             self.train_snn_aug = transforms.Compose([
                 transforms.RandomHorizontalFlip(p=0.5)
