@@ -376,12 +376,12 @@ class RepEncoderBlock(nn.Module):
         self.deploy=True
         
 class RepSCSBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, conv_kernel, num_convs, deploy=False):
+    def __init__(self, in_channels, out_channels, mlp_depth, mlp_kernel, deploy=False):
         super(RepSCSBlock, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.conv_kernel = conv_kernel
-        self.num_convs = num_convs
+        self.mlp_depth = mlp_depth
+        self.mlp_kernel = mlp_kernel
         self.deploy = deploy
 
         if self.deploy:
@@ -392,15 +392,11 @@ class RepSCSBlock(nn.Module):
             self.aac = convrelupxp(in_channels, out_channels, stride=2)
         self.proj_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
 
-        block = Rep1x1 if conv_kernel == 1 else Rep3x3
-        blocks = nn.Sequential()
-        for _ in range(num_convs):
-            blocks.append(block(out_channels, out_channels, deploy=deploy))
-        self.blocks = blocks
+        self.mlp = RepMLP(out_channels, out_channels, num_blocks=mlp_depth, kernel=mlp_kernel, deploy=deploy)
 
     def forward(self, x):
         if self.deploy:
-            return self.blocks(self.proj_sn(self.proj_reparm(x)))
+            return self.mlp(self.proj_sn(self.proj_reparm(x)))
         else:
             x,y = x
             out = self.proj_bn(self.proj_conv(x))
@@ -409,7 +405,7 @@ class RepSCSBlock(nn.Module):
             elif self.training:
                 y = out
             out = self.proj_sn(out)
-            out = self.blocks((out,y))
+            out = self.mlp((out,y))
             return out
         
     def _fuse_bn_tensor(self, conv, bn):
@@ -433,8 +429,7 @@ class RepSCSBlock(nn.Module):
         self.proj_reparm.weight.data = proj_kernel
         self.proj_reparm.bias.data = proj_bias
         self.proj_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.proj_conv.step_mode).to(self.proj_conv.weight.device)
-        for block in self.blocks:
-            block.switch_to_deploy()
+        self.mlp.switch_to_deploy()
         #for para in self.parameters(): #commented out for syops param count
         #    para.detach_()
         self.__delattr__('proj_conv')
@@ -454,10 +449,10 @@ class RepSCS(nn.Module):
         self.deploy = deploy
 
         blocks = nn.Sequential()
-        blocks.append(RepSCSBlock(in_channels,embed_dims//8,conv_kernel=3,num_convs=depths[0],deploy=self.deploy))
-        blocks.append(RepSCSBlock(embed_dims//8,embed_dims//4,conv_kernel=3,num_convs=depths[1],deploy=self.deploy))
-        blocks.append(RepSCSBlock(embed_dims//4,embed_dims//2,conv_kernel=3,num_convs=depths[2],deploy=self.deploy))
-        blocks.append(RepSCSBlock(embed_dims//2,embed_dims,conv_kernel=3,num_convs=depths[3],deploy=self.deploy))
+        blocks.append(RepSCSBlock(in_channels,embed_dims//8,mlp_kernel=3,mlp_depth=depths[0],deploy=self.deploy))
+        blocks.append(RepSCSBlock(embed_dims//8,embed_dims//4,mlp_kernel=3,mlp_depth=depths[1],deploy=self.deploy))
+        blocks.append(RepSCSBlock(embed_dims//4,embed_dims//2,mlp_kernel=3,mlp_depth=depths[2],deploy=self.deploy))
+        blocks.append(RepSCSBlock(embed_dims//2,embed_dims,mlp_kernel=3,mlp_depth=depths[3],deploy=self.deploy))
         blocks.append(Rep3x3(embed_dims,embed_dims,stride=1,deploy=self.deploy))
 
         self.blocks = blocks
