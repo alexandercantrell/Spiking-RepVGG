@@ -3,22 +3,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_neuron import ParaConnLIFNode
+from collections import OrderedDict
 
 def convrelupxp(in_channels, out_channels, stride=1):
     if stride != 1:
         return nn.Sequential(
-            layer.Conv2d(in_channels, in_channels, kernel_size=3, stride=stride,
-                        groups=in_channels, padding=1, bias=False),
-            layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False),
-            layer.BatchNorm2d(out_channels),
-            nn.ReLU()
+            OrderedDict([
+                ('stride_conv',layer.Conv2d(in_channels, in_channels, kernel_size=3, stride=stride,groups=in_channels, padding=1, bias=False)),
+                ('channel_conv',layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False)),
+                ('bn', layer.BatchNorm2d(out_channels)),
+                ('relu', nn.ReLU())
+            ])
         )
     else:
         return nn.Sequential(
-            layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False),
-            layer.BatchNorm2d(out_channels),
-            nn.ReLU()
+            OrderedDict([
+                ('channel_conv',layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False)),
+                ('bn', layer.BatchNorm2d(out_channels)),
+                ('relu', nn.ReLU())
+            ])
         )
+
 
 class Scaling1x1Block(nn.Module):
     def __init__(self, in_channels, out_channels, deploy=False):

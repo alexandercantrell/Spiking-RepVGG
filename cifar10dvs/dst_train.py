@@ -261,15 +261,17 @@ class Trainer:
     @param('optim.weight_decay')
     @param('optim.eps')
     def create_optimizer(self, lr, optimizer, momentum, weight_decay, eps):
-        # Only do weight decay on non-batchnorm parameters
+        # Only do weight decay on non-batchnorm parameters and non-sn
         all_params = list(self.model.named_parameters())
         print(f"Total number of parameters: {len(all_params)}")
         bn_params = [v for k, v in all_params if ('bn' in k) or ('.bias' in k)]
         print(f"Number of batchnorm parameters: {len(bn_params)}")
-        other_params = [v for k, v in all_params if not ('bn' in k) and not ('.bias' in k)]
-        print(f"Number of non-batchnorm parameters: {len(other_params)}")
+        sn_params = [v for k, v in all_params if ('sn' in k)]
+        print(f"Number of sn parameters: {len(sn_params)}")
+        other_params = [v for k, v in all_params if not ('bn' in k) and not ('.bias' in k) and not ('sn' in k)]
+        print(f"Number of non-batchnorm and non-sn parameters: {len(other_params)}")
         param_groups = [{
-            'params': bn_params,
+            'params': bn_params + sn_params,
             'weight_decay': 0.
         }, {
             'params': other_params,
