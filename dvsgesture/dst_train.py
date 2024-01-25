@@ -5,6 +5,7 @@ from torch.cuda.amp import autocast
 import torch.distributed as dist
 from torch.utils.tensorboard import SummaryWriter
 import torchmetrics
+from torchvision import transforms
 import numpy as np
 from tqdm import tqdm
 import math
@@ -29,6 +30,8 @@ from syops import get_model_complexity_info
 from syops.utils import syops_to_string, params_to_string
 from ops import MODULES_MAPPING
 import connecting_neuron
+import autoaugment
+from timm.data import Mixup
 
 SEED=2020
 import random
@@ -76,6 +79,7 @@ Section('validation', 'Validation parameters stuff').params(
 Section('optim','optimizer hyper params').params(
     momentum=Param(float, 'SGD momentum', default=0.9),
     weight_decay=Param(float, 'weight decay', default=0.0),
+    sn_weight_decay=Param(float, 'weight decay for spiking neuron', default=0.0),
 )
 
 Section('training', 'training hyper param stuff').params(
@@ -91,6 +95,17 @@ Section('dist', 'distributed training options').params(
     distributed=Param(bool, 'use distributed mode', is_flag=True),
 )
 
+Section('augment', 'augmentation options').params(
+    enable_augmentation=Param(bool, 'enable augmentation', is_flag=True),
+    smoothing=Param(float, 'smoothing', default=0.1),
+    mixup=Param(float, 'mixup', default=0.5),
+    cutmix=Param(float, 'cutmix', default=0.0),
+    cutmix_minmax=Param(float, 'cutmix_minmax', default=None),
+    mixup_prob=Param(float, 'mixup_prob', default=0.5),
+    mixup_switch_prob=Param(float, 'mixup_switch_prob', default=0.5),
+    mixup_mode=Param(str, 'mixup_mode', default='batch'),
+)
+
 class Trainer:
     @param('dist.distributed')
     @param('model.resume')
@@ -103,6 +118,7 @@ class Trainer:
         self.train_loader = self.create_train_loader()
         self.val_loader = self.create_val_loader()
         self.model, self.scaler = self.create_model_and_scaler()
+        self.create_augmentation()
         self.start_epoch=0
         self.max_accuracy=-1
         if resume is not None:
@@ -189,21 +205,56 @@ class Trainer:
 
         return model, scaler
     
+    @param('augment.enable_augmentation')
+    @param('augment.smoothing')
+    @param('augment.mixup')
+    @param('augment.cutmix')
+    @param('augment.mixup_prob')
+    @param('augment.mixup_switch_prob')
+    @param('augment.mixup_mode')
+    @param('augment.cutmix_minmax')
+    def create_augmentation(self, enable_augmentation, smoothing, mixup, cutmix, mixup_prob, mixup_switch_prob, mixup_mode, cutmix_minmax=None):
+        if enable_augmentation:
+            self.train_snn_aug = transforms.Compose([
+                transforms.RandomHorizontalFlip(p=0.5)
+            ])
+            self.train_trivalaug = autoaugment.SNNAugmentWide()
+            self.mixup_fn = None
+            mixup_active = mixup > 0 or cutmix > 0 or cutmix_minmax is not None
+            if mixup_active:
+                mixup_args = dict(
+                    mixup_alpha = mixup, cutmix_alpha = cutmix, cutmix_minmax = cutmix_minmax,
+                    prob = mixup_prob, switch_prob = mixup_switch_prob, mode = mixup_mode,
+                    label_smoothing = smoothing, num_classes = self.num_classes)
+                self.mixup_fn = Mixup(**mixup_args)
+        else:
+            self.train_snn_aug = None
+            self.train_trivalaug = None
+            self.mixup_fn = None
+    
     @param('lr.lr')
     @param('optim.momentum')
     @param('optim.weight_decay')
-    def create_optimizer(self, lr, momentum, weight_decay):
+    @param('optim.sn_weight_decay')
+    def create_optimizer(self, lr, momentum, weight_decay, sn_weight_decay):
         # Only do weight decay on non-batchnorm parameters
         all_params = list(self.model.named_parameters())
         print(f"Total number of parameters: {len(all_params)}")
         bn_params = [v for k, v in all_params if ('bn' in k) or ('.bias' in k)]
         print(f"Number of batchnorm parameters: {len(bn_params)}")
-        other_params = [v for k, v in all_params if not ('bn' in k) and not ('.bias' in k)]
-        print(f"Number of non-batchnorm parameters: {len(other_params)}")
+        sn_params = [v for k, v in all_params if ('sn' in k)]
+        print(f"Number of sn parameters: {len(sn_params)}")
+        other_params = [v for k, v in all_params if not ('bn' in k) and not ('.bias' in k) and not ('sn' in k)]
+        print(f"Number of non-batchnorm and non-sn parameters: {len(other_params)}")
         param_groups = [{
             'params': bn_params,
             'weight_decay': 0.
-        }, {
+        },
+        {
+            'params': sn_params,
+            'weight_decay': sn_weight_decay
+        },         
+        {
             'params': other_params,
             'weight_decay': weight_decay
         }]
@@ -289,6 +340,17 @@ class Trainer:
                 sec_list = np.random.choice(images.shape[1],T_train,replace=False)
                 sec_list.sort()
                 images = images[:,sec_list]
+            N,T,C,H,W = images.shape
+            if self.train_snn_aug is not None:
+                images = ch.stack([(self.train_snn_aug(images[i])) for i in range(N)])
+            if self.train_trivalaug is not None:
+                images = ch.stack([(self.train_trivalaug(images[i])) for i in range(N)])
+            if self.mixup_fn is not None:
+                images, target = self.mixup_fn(images, target)
+                target_for_compu_acc = target.argmax(dim=-1)
+            else:
+                target_for_compu_acc = target
+                
             with autocast():
                 (output, aac) = self.model(images)
                 loss_train = self.loss(output, target) + self.loss(aac, target)
@@ -297,11 +359,11 @@ class Trainer:
             self.scaler.update()
             functional.reset_net(model)
             end = time.time()
-
             output=output.detach()
             target=target.detach()
-            self.meters['top_1'](output,target)
-            self.meters['top_5'](output,target)
+            target_for_compu_acc=target_for_compu_acc.detach()
+            self.meters['top_1'](output,target_for_compu_acc)
+            self.meters['top_5'](output,target_for_compu_acc)
             batch_size=target.shape[0]
             self.meters['thru'](ch.tensor(batch_size/(end-start)))
             self.meters['loss'](loss_train.detach())
