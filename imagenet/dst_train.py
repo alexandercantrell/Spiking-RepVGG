@@ -236,7 +236,21 @@ class Trainer:
     @param('optim.momentum')
     @param('optim.weight_decay')
     def create_optimizer(self, lr, momentum, weight_decay):
-        self.optimizer = ch.optim.SGD(self.model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
+        # Only do weight decay on non-batchnorm parameters
+        all_params = list(self.model.named_parameters())
+        print(f"Total number of parameters: {len(all_params)}")
+        bn_params = [v for k, v in all_params if ('bn' in k) or ('.bias' in k)]
+        print(f"Number of batchnorm parameters: {len(bn_params)}")
+        other_params = [v for k, v in all_params if not ('bn' in k) and not ('.bias' in k)]
+        print(f"Number of non-batchnorm parameters: {len(other_params)}")
+        param_groups = [{
+            'params': bn_params,
+            'weight_decay': 0.
+        }, {
+            'params': other_params,
+            'weight_decay': weight_decay
+        }]
+        self.optimizer = ch.optim.SGD(param_groups, lr=lr, momentum=momentum)
         self.loss = ch.nn.CrossEntropyLoss()
 
 
