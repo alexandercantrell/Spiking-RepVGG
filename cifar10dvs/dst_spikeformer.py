@@ -219,7 +219,7 @@ class RepMLP(nn.Module):
         for block in self.blocks:
             block.switch_to_deploy()
         self.deploy=True
-        
+
 class RepSSA(nn.Module):
     def __init__(self, dim, num_heads=8, deploy=False):
         super(RepSSA, self).__init__()
@@ -531,8 +531,50 @@ def RepSpikeFormerA(num_classes=10, deploy=False):
         mlp_kernel=1
         )
 
+def RepSpikeFormerB(num_classes=10, deploy=False):
+    return RepSpikeFormer(
+        img_size=(128,128),
+        patch_size=(16,16),
+        in_channels=2,
+        num_classes=num_classes, 
+        embed_dims=256,
+        num_heads=16,
+        scs_depths=[2,2,2,2],
+        mlp_depths=[4,4],
+        mlp_kernel=1
+    )
+
+def RepSpikeFormerC(num_classes=10, deploy=False):
+    return RepSpikeFormer(
+        img_size=(128,128),
+        patch_size=(16,16),
+        in_channels=2,
+        num_classes=num_classes, 
+        embed_dims=256,
+        num_heads=16,
+        scs_depths=[2,2,2,2],
+        mlp_depths=[1,1],
+        mlp_kernel=3
+    )
+
+def RepSpikeFormerD(num_classes=10, deploy=False):
+    return RepSpikeFormer(
+        img_size=(128,128),
+        patch_size=(16,16),
+        in_channels=2,
+        num_classes=num_classes, 
+        embed_dims=256,
+        num_heads=16,
+        scs_depths=[2,2,2,2],
+        mlp_depths=[2,2],
+        mlp_kernel=3
+    )
+
 model_dict = {
     'RepSpikeFormerA': RepSpikeFormerA,
+    'RepSpikeFormerB': RepSpikeFormerB,
+    'RepSpikeFormerC': RepSpikeFormerC,
+    'RepSpikeFormerD': RepSpikeFormerD
 }
 
 def get_model_by_name(model_name):
