@@ -85,6 +85,7 @@ Section('optim','optimizer hyper params').params(
     optimizer=Param(OneOf(['sgd','adamw']),'optimizer',default='sgd'),
     momentum=Param(float, 'momentum', default=0.9),
     weight_decay=Param(float, 'weight decay', default=0.0),
+    sn_weight_decay=Param(float, 'sn weight decay', default=0.0),
     eps=Param(float, 'eps', default=1e-8),
 )
 
@@ -259,8 +260,9 @@ class Trainer:
     @param('optim.optimizer')
     @param('optim.momentum')
     @param('optim.weight_decay')
+    @param('optim.sn_weight_decay')
     @param('optim.eps')
-    def create_optimizer(self, lr, optimizer, momentum, weight_decay, eps):
+    def create_optimizer(self, lr, optimizer, momentum, weight_decay, sn_weight_decay, eps):
         # Only do weight decay on non-batchnorm parameters and non-sn
         all_params = list(self.model.named_parameters())
         print(f"Total number of parameters: {len(all_params)}")
@@ -271,9 +273,14 @@ class Trainer:
         other_params = [v for k, v in all_params if not ('bn' in k) and not ('.bias' in k) and not ('sn' in k)]
         print(f"Number of non-batchnorm and non-sn parameters: {len(other_params)}")
         param_groups = [{
-            'params': bn_params + sn_params,
+            'params': bn_params,
             'weight_decay': 0.
-        }, {
+        },
+        {
+            'params': sn_params,
+            'weight_decay': sn_weight_decay
+        },         
+        {
             'params': other_params,
             'weight_decay': weight_decay
         }]
