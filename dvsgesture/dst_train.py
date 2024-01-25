@@ -21,7 +21,7 @@ from fastargs.decorators import param
 from fastargs import Param, Section
 from fastargs.validation import And, OneOf
 
-from dst_models import get_model_by_name
+from dvsgesture.dst_repvgg import get_model_by_name
 
 from spikingjelly.activation_based import neuron, functional
 from spikingjelly.datasets import dvs128_gesture

@@ -25,7 +25,7 @@ from fastargs.validation import And, OneOf
 import torchvision
 from torchvision import transforms
 
-from dst_models import get_model_by_name
+from imagenet.dst_repvgg import get_model_by_name
 import connecting_neuron
 
 from spikingjelly.activation_based import neuron, functional

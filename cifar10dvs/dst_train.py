@@ -22,7 +22,7 @@ from fastargs.decorators import param
 from fastargs import Param, Section
 from fastargs.validation import And, OneOf
 
-from dst_models import model_dict as repvgg_model_dict
+from cifar10dvs.dst_repvgg import model_dict as repvgg_model_dict
 from dst_resnet import model_dict as resnet_model_dict
 from dst_spikeformer import model_dict as spikeformer_model_dict
 
