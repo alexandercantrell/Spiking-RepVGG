@@ -363,6 +363,19 @@ def SRepVGG_N1(num_classes, block_type='spike_connecting'):
     }
     return SRepVGG(cfg_dict, num_classes)
 
+def SRepVGG_N2(num_classes, block_type='spike_connecting'):
+    cfg_dict = {
+        'block_type': block_type,
+        'layers': [
+            {'channels': 64, 'num_blocks': 1, 'stride': 1},
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},
+            {'channels': 64, 'num_blocks': 4, 'stride': 2},
+            {'channels': 128, 'num_blocks': 14, 'stride': 2},
+            {'channels': 256, 'num_blocks': 1, 'stride': 2},
+        ],
+    }
+    return SRepVGG(cfg_dict, num_classes)
+
 def SRepVGG_N0_Sc1x1(num_classes, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
@@ -389,11 +402,26 @@ def SRepVGG_N1_Sc1x1(num_classes, block_type='spike_connecting'):
     }
     return SRepVGG(cfg_dict, num_classes, scaling1x1=True)
 
+def SRepVGG_N2_Sc1x1(num_classes, block_type='spike_connecting'):
+    cfg_dict = {
+        'block_type': block_type,
+        'layers': [
+            #{'channels': 64, 'num_blocks': 1, 'stride': 1},
+            {'channels': 64, 'num_blocks': 2, 'stride': 2},
+            {'channels': 64, 'num_blocks': 4, 'stride': 2},
+            {'channels': 128, 'num_blocks': 14, 'stride': 2},
+            {'channels': 256, 'num_blocks': 1, 'stride': 2},
+        ],
+    }
+    return SRepVGG(cfg_dict, num_classes, scaling1x1=True)
+
 model_dict = {
     'SRepVGG_N0': SRepVGG_N0,
     'SRepVGG_N1': SRepVGG_N1,
+    'SRepVGG_N2': SRepVGG_N2,
     'SRepVGG_N0_Sc1x1': SRepVGG_N0_Sc1x1,
     'SRepVGG_N1_Sc1x1': SRepVGG_N1_Sc1x1,
+    'SRepVGG_N2_Sc1x1': SRepVGG_N2_Sc1x1,
 }
 
 def get_model_by_name(name):
