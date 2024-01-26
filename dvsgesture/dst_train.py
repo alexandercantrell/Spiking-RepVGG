@@ -336,10 +336,6 @@ class Trainer:
             self.optimizer.zero_grad(set_to_none=True)
             images = images.to(self.gpu, non_blocking=True).float()
             target = target.to(self.gpu, non_blocking=True)
-            if T_train:
-                sec_list = np.random.choice(images.shape[1],T_train,replace=False)
-                sec_list.sort()
-                images = images[:,sec_list]
             N,T,C,H,W = images.shape
             if self.train_snn_aug is not None:
                 images = ch.stack([(self.train_snn_aug(images[i])) for i in range(N)])
@@ -350,7 +346,11 @@ class Trainer:
                 target_for_compu_acc = target.argmax(dim=-1)
             else:
                 target_for_compu_acc = target
-                
+            if T_train:
+                sec_list = np.random.choice(images.shape[1],T_train,replace=False)
+                sec_list.sort()
+                images = images[:,sec_list]
+
             with autocast():
                 (output, aac) = self.model(images)
                 loss_train = self.loss(output, target) + self.loss(aac, target)
