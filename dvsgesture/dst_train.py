@@ -362,11 +362,11 @@ class Trainer:
             output=output.detach()
             target=target.detach()
             target_for_compu_acc=target_for_compu_acc.detach()
-            self.meters['top_1'](output,target_for_compu_acc)
-            self.meters['top_5'](output,target_for_compu_acc)
+            self.meters['top_1'].update(output,target_for_compu_acc)
+            self.meters['top_5'].update(output,target_for_compu_acc)
             batch_size=target.shape[0]
-            self.meters['thru'](ch.tensor(batch_size/(end-start)))
-            self.meters['loss'](loss_train.detach())
+            self.meters['thru'].update(ch.tensor(batch_size/(end-start)))
+            self.meters['loss'].update(loss_train.detach())
 
         stats = {k:m.compute().item() for k, m in self.meters.items()}
         [meter.reset() for meter in self.meters.values()]
@@ -385,12 +385,12 @@ class Trainer:
                     (output, aac) = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
-                    self.meters['top_1'](output, target)
-                    self.meters['top_5'](output, target)
+                    self.meters['top_1'].update(output, target)
+                    self.meters['top_5'].update(output, target)
                     batch_size = target.shape[0]
-                    self.meters['thru'](ch.tensor(batch_size/(end-start)))
+                    self.meters['thru'].update(ch.tensor(batch_size/(end-start)))
                     loss_val = self.loss(output, target)
-                    self.meters['loss'](loss_val)
+                    self.meters['loss'].update(loss_val)
 
         stats = {k: m.compute().item() for k, m in self.meters.items()}
         [meter.reset() for meter in self.meters.values()]
@@ -403,10 +403,10 @@ class Trainer:
     @param('logging.clean')
     def initialize_logger(self, folder, tag, arch, block_type, clean=None):
         self.meters = {
-            'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False).to(self.gpu),
-            'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes,compute_on_step=False, top_k=5).to(self.gpu),
-            'thru': MeanScalarMetric(compute_on_step=False).to(self.gpu),
-            'loss': MeanScalarMetric(compute_on_step=False).to(self.gpu)
+            'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes).to(self.gpu),
+            'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes, top_k=5).to(self.gpu),
+            'thru': MeanScalarMetric().to(self.gpu),
+            'loss': MeanScalarMetric().to(self.gpu)
         }
 
         if self.gpu == 0:
