@@ -458,7 +458,7 @@ class RepSCS(nn.Module):
         blocks.append(RepSCSBlock(embed_dims//8,embed_dims//4,mlp_kernel=3,mlp_depth=depths[1],deploy=self.deploy,kernel_size=kernel_size))
         blocks.append(RepSCSBlock(embed_dims//4,embed_dims//2,mlp_kernel=3,mlp_depth=depths[2],deploy=self.deploy,kernel_size=kernel_size))
         blocks.append(RepSCSBlock(embed_dims//2,embed_dims,mlp_kernel=3,mlp_depth=depths[3],deploy=self.deploy,kernel_size=kernel_size))
-        blocks.append(Rep3x3(embed_dims,embed_dims,stride=1,deploy=self.deploy))
+        #blocks.append(Rep3x3(embed_dims,embed_dims,stride=1,deploy=self.deploy))
 
         self.blocks = blocks
     
@@ -616,8 +616,8 @@ def RepSpikeFormerA0(num_classes=10, deploy=False):
         num_classes=num_classes, 
         embed_dims=256,
         num_heads=16,
-        scs_depths=[1,1,1,1],
-        scs_kernel=3,
+        scs_depths=[2,2,2,2],
+        scs_kernel=2,
         mlp_depths=[2,2],
         mlp_kernel=1
         )
