@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_neuron import ParaConnLIFNode
 
+V_THRESHOLD = 1.0
+
 def convrelupxp(in_channels, out_channels, stride=1):
     if stride != 1:
         return nn.Sequential(
@@ -31,7 +33,7 @@ class Scaling1x1Block(nn.Module):
         else:
             self.conv1x1 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0, bias=False)
             self.bn = layer.BatchNorm2d(out_channels)
-        self.sn = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.sn = neuron.ParametricLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan())
 
     def forward(self, x):
         if self.deploy:
@@ -93,7 +95,7 @@ class SpikeRepVGGBlock(nn.Module):
                 self.aac = nn.Identity()
             else:
                 self.aac = convrelupxp(in_channels, out_channels, stride)
-        self.sn = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.sn = neuron.ParametricLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan())
 
     def forward(self, x):
         if self.deploy:
@@ -174,7 +176,7 @@ class SpikeConnRepVGGBlock(nn.Module):
         self.identity = stride == 1 and in_channels == out_channels
         if deploy:
             self.reparam = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, groups=groups, padding=1, bias=True)
-            self.sn = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
+            self.sn = neuron.ParametricLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan())
         else:
             self.conv3x3 = layer.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=stride, groups=groups, padding=1, bias=False)
             self.bn3x3 = layer.BatchNorm2d(out_channels)
@@ -182,10 +184,10 @@ class SpikeConnRepVGGBlock(nn.Module):
             self.bn = layer.BatchNorm2d(out_channels)
             if self.identity:
                 self.aac = nn.Identity()
-                self.sn = ParaConnLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
+                self.sn = ParaConnLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan())
             else:
                 self.aac = convrelupxp(in_channels, out_channels, stride)
-                self.sn = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
+                self.sn = neuron.ParametricLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan())
             
     def forward(self, x):
         if self.deploy:
@@ -251,7 +253,7 @@ class SpikeConnRepVGGBlock(nn.Module):
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
         w = self.sn.w.data
-        self.sn = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
+        self.sn = neuron.ParametricLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.sn.w.data = w
         #for para in self.parameters(): #commented out for syops param count
         #    para.detach_()
