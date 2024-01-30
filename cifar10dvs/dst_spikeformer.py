@@ -458,92 +458,6 @@ class RepSCS(nn.Module):
         blocks.append(RepSCSBlock(embed_dims//8,embed_dims//4,mlp_kernel=3,mlp_depth=depths[1],deploy=self.deploy,kernel_size=kernel_size))
         blocks.append(RepSCSBlock(embed_dims//4,embed_dims//2,mlp_kernel=3,mlp_depth=depths[2],deploy=self.deploy,kernel_size=kernel_size))
         blocks.append(RepSCSBlock(embed_dims//2,embed_dims,mlp_kernel=3,mlp_depth=depths[3],deploy=self.deploy,kernel_size=kernel_size))
-        #blocks.append(Rep3x3(embed_dims,embed_dims,stride=1,deploy=self.deploy))
-
-        self.blocks = blocks
-    
-    def forward(self, x):
-        return self.blocks(x)
-    
-    def switch_to_deploy(self):
-        for block in self.blocks:
-            block.switch_to_deploy()
-        self.deploy=True
-
-class RepSPSBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, deploy=False):
-        super(RepSPSBlock, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.deploy = deploy
-
-        if self.deploy:
-            self.proj_reparm = layer.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, bias=True)
-            self.mp = layer.MaxPool2d(kernel_size=2, stride=2)
-        else:
-            self.proj_conv = layer.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, bias=False)
-            self.proj_bn = layer.BatchNorm2d(out_channels)
-            self.mp = layer.MaxPool2d(kernel_size=2, stride=2)
-        self.proj_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-
-    def forward(self, x):
-        if self.deploy:
-            return self.mp(self.proj_sn(self.proj_reparm(x)))
-        else:
-            x,y = x
-            out = self.proj_bn(self.proj_conv(x))
-            if y is not None:
-                y = self.mp(y + out)
-            elif self.training:
-                y = self.mp(out)
-            out = self.proj_sn(out)
-            out = self.mp((out))
-            return out, y
-        
-    def _fuse_bn_tensor(self, conv, bn):
-        kernel = conv.weight
-        running_mean = bn.running_mean
-        running_var = bn.running_var
-        gamma = bn.weight
-        beta = bn.bias
-        eps = bn.eps
-        std = torch.sqrt(running_var + eps)
-        t = (gamma / std).reshape(-1, 1, 1, 1)
-        return kernel * t, beta - running_mean * gamma / std
-    
-    def switch_to_deploy(self):
-        if hasattr(self, 'proj_reparm'):
-            return
-        proj_kernel, proj_bias = self._fuse_bn_tensor(self.proj_conv, self.proj_bn)
-        self.proj_reparm = layer.Conv2d(in_channels=self.in_channels, out_channels=self.out_channels,
-                                      kernel_size=3, stride=1,
-                                      bias=True, step_mode=self.proj_conv.step_mode).to(self.proj_conv.weight.device)
-        self.proj_reparm.weight.data = proj_kernel
-        self.proj_reparm.bias.data = proj_bias
-        self.proj_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.proj_conv.step_mode).to(self.proj_conv.weight.device)
-        #for para in self.parameters(): #commented out for syops param count
-        #    para.detach_()
-        self.__delattr__('proj_conv')
-        self.__delattr__('proj_bn')
-        self.deploy=True
-
-class RepSPS(nn.Module):
-    def __init__(self, img_size=(128,128), patch_size=(4,4), in_channels=2, embed_dims=256, deploy=False):
-        super(RepSPS, self).__init__()
-        self.img_size = img_size
-        self.patch_size = patch_size if isinstance(patch_size, tuple) else (patch_size, patch_size)
-        self.C = in_channels
-        self.H, self.W = self.img_size[0]//self.patch_size[0], self.img_size[1]//self.patch_size[1]
-        self.num_patches = self.H * self.W
-        self.embed_dims = embed_dims
-        self.deploy = deploy
-
-        blocks = nn.Sequential()
-        blocks.append(RepSPSBlock(in_channels,embed_dims//8,deploy=self.deploy))
-        blocks.append(RepSPSBlock(embed_dims//8,embed_dims//4,deploy=self.deploy))
-        blocks.append(RepSPSBlock(embed_dims//4,embed_dims//2,deploy=self.deploy))
-        blocks.append(RepSPSBlock(embed_dims//2,embed_dims,deploy=self.deploy))
-        blocks.append(Rep3x3(embed_dims,embed_dims,stride=1,deploy=self.deploy))
 
         self.blocks = blocks
     
@@ -557,12 +471,11 @@ class RepSPS(nn.Module):
 
 class RepSpikeFormer(nn.Module):
     def __init__(self, img_size=(128,128), patch_size=4, in_channels=2, num_classes=10,
-                embed_dims=256, num_heads=8, scs_depths=[2,2,2,2], scs_kernel=2, mlp_depths=[2,2], mlp_kernel=1, deploy=False, use_scs=True):
+                embed_dims=256, num_heads=8, scs_depths=[2,2,2,2], scs_kernel=2, mlp_depths=[2,2], mlp_kernel=1, deploy=False):
         super(RepSpikeFormer, self).__init__()
         self.num_classes = num_classes
         self.deploy = deploy
-        self.use_scs = use_scs
-        self.patch_embed = RepSCS(img_size, patch_size, in_channels, embed_dims, scs_depths, scs_kernel, deploy) if use_scs else RepSPS(img_size, patch_size, in_channels, embed_dims, deploy)
+        self.patch_embed = RepSCS(img_size, patch_size, in_channels, embed_dims, scs_depths, scs_kernel, deploy)
         self.attn_blocks = nn.Sequential(*[
             RepEncoderBlock(embed_dims, num_heads, mlp_depth, mlp_kernel=mlp_kernel, deploy=deploy) for mlp_depth in mlp_depths
         ])
@@ -619,10 +532,11 @@ def RepSpikeFormerA0(num_classes=10, deploy=False):
         scs_depths=[2,2,2,2],
         scs_kernel=2,
         mlp_depths=[2,2],
-        mlp_kernel=1
+        mlp_kernel=1,
+        deploy=deploy
         )
 
-def RepSpikeFormerA0_SPS(num_classes=10, deploy=False):
+def RepSpikeFormerA0_mini(num_classes=10, deploy=False):
     return RepSpikeFormer(
         img_size=(128,128),
         patch_size=(16,16),
@@ -630,9 +544,11 @@ def RepSpikeFormerA0_SPS(num_classes=10, deploy=False):
         num_classes=num_classes, 
         embed_dims=256,
         num_heads=16,
+        scs_depths=[1,1,1,1],
+        scs_kernel=3,
         mlp_depths=[2,2],
         mlp_kernel=1,
-        use_scs=False
+        deploy=deploy
         )
 
 #TODO: implement for dvsgesture for B series
@@ -644,29 +560,16 @@ def RepSpikeFormerB0(num_classes=10, deploy=False):
         num_classes=num_classes, 
         embed_dims=256,
         num_heads=16,
-        scs_depths=[1,1,1,1],
-        mlp_depths=[2,2],
-        mlp_kernel=1
-    )
-
-def RepSpikeFormerB0_SPS(num_classes=10, deploy=False):
-    return RepSpikeFormer(
-        img_size=(128,128),
-        patch_size=(16,16),
-        in_channels=2,
-        num_classes=num_classes, 
-        embed_dims=256,
-        num_heads=16,
+        scs_depths=[2,2,2,2],
         mlp_depths=[2,2],
         mlp_kernel=1,
-        use_scs=False
+        deploy=deploy
     )
 
 model_dict = {
     'RepSpikeFormerA0': RepSpikeFormerA0,
-    'RepSpikeFormerA0_SPS': RepSpikeFormerA0_SPS,
+    'RepSpikeFormerA0_mini': RepSpikeFormerA0_mini,
     'RepSpikeFormerB0': RepSpikeFormerB0,
-    'RepSpikeFormerB0_SPS': RepSpikeFormerB0_SPS
 }
 
 def get_model_by_name(model_name):
