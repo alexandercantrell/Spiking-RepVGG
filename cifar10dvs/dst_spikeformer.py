@@ -545,7 +545,7 @@ def RepSpikeFormerA0_mini(num_classes=10, deploy=False):
         embed_dims=256,
         num_heads=16,
         scs_depths=[1,1,1,1],
-        scs_kernel=3,
+        scs_kernel=3, #TODO: test for scs_kernel=2
         mlp_depths=[2,2],
         mlp_kernel=1,
         deploy=deploy

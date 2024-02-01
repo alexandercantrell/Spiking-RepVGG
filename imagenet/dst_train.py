@@ -26,6 +26,9 @@ import torchvision
 from torchvision import transforms
 
 from dst_repvgg import get_model_by_name
+from syops import get_model_complexity_info
+from syops.utils import syops_to_string, params_to_string
+from ops import MODULES_MAPPING
 import connecting_neuron
 
 from spikingjelly.activation_based import neuron, functional
@@ -80,6 +83,7 @@ Section('validation', 'Validation parameters stuff').params(
 Section('optim','optimizer hyper params').params(
     momentum=Param(float, 'SGD momentum', default=0.9),
     weight_decay = Param(float, 'weight decay', default=0.0),
+    sn_weight_decay = Param(float, 'weight decay for sn', default=0.0)
 )
 
 Section('training', 'training hyper param stuff').params(
@@ -215,7 +219,7 @@ class Trainer:
     def create_model_and_scaler(self, arch, block_type, cupy, T, distributed, sync_bn=None):
         scaler = GradScaler()
         
-        model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type)
+        model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type,T=T)
         if T>0:
             functional.set_step_mode(model,'m')
         else:
@@ -291,6 +295,28 @@ class Trainer:
         train_time = time.time()-start_train
         train_time_str = str(datetime.timedelta(seconds=int(train_time)))
         self.log(f'Training time {train_time_str}')
+        self.log(f'Max accuracy {self.max_accuracy}')
+        self.calculate_complexity()
+        self._save_results()
+
+    def calculate_complexity(self):
+        self.model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
+        self.model.switch_to_deploy()
+        ops, params = get_model_complexity_info(self.model, (2, 128, 128), self.val_loader, as_strings=False,
+                                                 print_per_layer_stat=True, verbose=True, custom_modules_hooks=MODULES_MAPPING)
+        self.syops_count = ops
+        self.params_count = params
+        self.total_energy = (ops[1]*0.9 + ops[2]*4.6)*1e-9
+        self.energy_string = f'{round(self.total_energy,2)} mJ'
+        self.syops_string = f'{syops_to_string(ops[0],units="G Ops",precision=2)}'
+        self.ac_ops_string = f'{syops_to_string(ops[1],units="G Ops",precision=2)}'
+        self.mac_ops_string = f'{syops_to_string(ops[2],units="G Ops",precision=2)}'
+        self.params_string = f'{params_to_string(params,units="M",precision=2)}'
+        self.log(f'Total Syops: {self.syops_string}')
+        self.log(f'AC Ops: {self.ac_ops_string}')
+        self.log(f'MAC Ops: {self.mac_ops_string}')
+        self.log(f'Total Energy: {self.energy_string}')
+        self.log(f'Params: {self.params_string}')
 
     def eval_and_log(self):
         start_val = time.time()
@@ -405,6 +431,25 @@ class Trainer:
         with open(os.path.join(self.log_folder, 'log'), 'a+') as fd:
             fd.write(content + '\n')
             fd.flush()
+
+    @param('dist.distributed')
+    def _save_results(self, distributed):
+        if distributed:
+            dist.barrier()
+        results = {
+            'syops_count': self.syops_count.tolist(),
+            'params_count': self.params_count,
+            'total_energy': self.total_energy,
+            'energy_string': self.energy_string,
+            'syops_string': self.syops_string,
+            'ac_ops_string': self.ac_ops_string,
+            'mac_ops_string': self.mac_ops_string,
+            'params_string': self.params_string,
+            'max_accuracy': self.max_accuracy,
+        }
+        if self.gpu==0:
+            with open(os.path.join(self.log_folder, 'results.json'), 'w+') as handle:
+                json.dump(results, handle)
 
     @param('dist.distributed')
     def _save_checkpoint(self,path,epoch,distributed):

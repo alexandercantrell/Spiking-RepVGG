@@ -3,21 +3,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_neuron import ConnIFNode
+from collections import OrderedDict
+
+V_THRESHOLD = 1.0
 
 def convrelupxp(in_channels, out_channels, stride=1):
     if stride != 1:
         return nn.Sequential(
-            layer.Conv2d(in_channels, in_channels, kernel_size=3, stride=stride,
-                        groups=in_channels, padding=1, bias=False),
-            layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False),
-            layer.BatchNorm2d(out_channels),
-            nn.ReLU()
+            OrderedDict([
+                ('stride_conv',layer.Conv2d(in_channels, in_channels, kernel_size=3, stride=stride,groups=in_channels, padding=1, bias=False)),
+                ('channel_conv',layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False)),
+                ('bn', layer.BatchNorm2d(out_channels)),
+                ('relu', nn.ReLU())
+            ])
         )
     else:
         return nn.Sequential(
-            layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False),
-            layer.BatchNorm2d(out_channels),
-            nn.ReLU()
+            OrderedDict([
+                ('channel_conv',layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, bias=False)),
+                ('bn', layer.BatchNorm2d(out_channels)),
+                ('relu', nn.ReLU())
+            ])
         )
 
 class SpikeRepVGGBlock(nn.Module):
@@ -208,7 +214,7 @@ class SpikeConnRepVGGBlock(nn.Module):
         self.deploy=True
 
 class SRepVGG(nn.Module):
-    def __init__(self, cfg_dict, num_classes, deploy=False):
+    def __init__(self, cfg_dict, num_classes, T=4, deploy=False):
         super(SRepVGG, self).__init__()
         self.deploy = deploy
         if cfg_dict['block_type'] == 'spike':
@@ -220,7 +226,7 @@ class SRepVGG(nn.Module):
         
         self.override_groups_map = cfg_dict.get('override_groups_map', {})
         self.cur_layer_idx=0
-        
+        self.T = T
         in_channels=3
         layer_list = cfg_dict['layers']
         convs = nn.Sequential()
@@ -247,6 +253,8 @@ class SRepVGG(nn.Module):
         return convs
     
     def forward(self, x: torch.Tensor):
+        if len(x.shape) == 4 and self.T>0:
+            x.unsqueeze(0).repeat(self.T,1,1,1,1)
         if self.deploy:
             out = self.convs(x)
             out = self.avgpool(out)
@@ -277,7 +285,7 @@ optional_groupwise_layers = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26]
 g2_map = {l: 2 for l in optional_groupwise_layers}
 g4_map = {l: 4 for l in optional_groupwise_layers}
 
-def SRepVGG_A0(num_classes, block_type='spike_connecting'):
+def SRepVGG_A0(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -288,9 +296,9 @@ def SRepVGG_A0(num_classes, block_type='spike_connecting'):
             {'channels': 1280, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_A1(num_classes, block_type='spike_connecting'):
+def SRepVGG_A1(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -301,9 +309,9 @@ def SRepVGG_A1(num_classes, block_type='spike_connecting'):
             {'channels': 1280, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_A2(num_classes, block_type='spike_connecting'):
+def SRepVGG_A2(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -314,9 +322,9 @@ def SRepVGG_A2(num_classes, block_type='spike_connecting'):
             {'channels': 1408, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B0(num_classes, block_type='spike_connecting'):
+def SRepVGG_B0(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -327,9 +335,9 @@ def SRepVGG_B0(num_classes, block_type='spike_connecting'):
             {'channels': 1280, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B1(num_classes, block_type='spike_connecting'):
+def SRepVGG_B1(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -340,9 +348,9 @@ def SRepVGG_B1(num_classes, block_type='spike_connecting'):
             {'channels': 2048, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B1g2(num_classes, block_type='spike_connecting'):
+def SRepVGG_B1g2(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'override_groups_map': g2_map,
@@ -354,9 +362,9 @@ def SRepVGG_B1g2(num_classes, block_type='spike_connecting'):
             {'channels': 2048, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B1g4(num_classes, block_type='spike_connecting'):
+def SRepVGG_B1g4(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'override_groups_map': g4_map,
@@ -368,9 +376,9 @@ def SRepVGG_B1g4(num_classes, block_type='spike_connecting'):
             {'channels': 2048, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B2(num_classes, block_type='spike_connecting'):
+def SRepVGG_B2(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -381,9 +389,9 @@ def SRepVGG_B2(num_classes, block_type='spike_connecting'):
             {'channels': 2560, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B2g2(num_classes, block_type='spike_connecting'):
+def SRepVGG_B2g2(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'override_groups_map': g2_map,
@@ -395,9 +403,9 @@ def SRepVGG_B2g2(num_classes, block_type='spike_connecting'):
             {'channels': 2560, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B2g4(num_classes, block_type='spike_connecting'):
+def SRepVGG_B2g4(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'override_groups_map': g4_map,
@@ -409,9 +417,9 @@ def SRepVGG_B2g4(num_classes, block_type='spike_connecting'):
             {'channels': 2560, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B3(num_classes, block_type='spike_connecting'):
+def SRepVGG_B3(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -422,9 +430,9 @@ def SRepVGG_B3(num_classes, block_type='spike_connecting'):
             {'channels': 2560, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B3g2(num_classes, block_type='spike_connecting'):
+def SRepVGG_B3g2(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'override_groups_map': g2_map,
@@ -436,9 +444,9 @@ def SRepVGG_B3g2(num_classes, block_type='spike_connecting'):
             {'channels': 2560, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
-def SRepVGG_B3g4(num_classes, block_type='spike_connecting'):
+def SRepVGG_B3g4(num_classes, T=4, block_type='spike_connecting'):
     cfg_dict = {
         'block_type': block_type,
         'override_groups_map': g4_map,
@@ -450,7 +458,7 @@ def SRepVGG_B3g4(num_classes, block_type='spike_connecting'):
             {'channels': 2560, 'num_blocks': 1, 'stride': 2}
         ]
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, T=T)
 
 model_dict = {
     'SRepVGG_A0': SRepVGG_A0,

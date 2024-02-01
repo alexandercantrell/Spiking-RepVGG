@@ -262,7 +262,9 @@ class Trainer:
     @param('optim.weight_decay')
     @param('optim.sn_weight_decay')
     @param('optim.eps')
-    def create_optimizer(self, lr, optimizer, momentum, weight_decay, sn_weight_decay, eps):
+    @param('augment.enable_augmentation')
+    @param('augment.smoothing')
+    def create_optimizer(self, lr, optimizer, momentum, weight_decay, sn_weight_decay, eps, enable_augmentation, smoothing):
         # Only do weight decay on non-batchnorm parameters and non-sn
         all_params = list(self.model.named_parameters())
         print(f"Total number of parameters: {len(all_params)}")
@@ -290,7 +292,10 @@ class Trainer:
             self.optimizer = ch.optim.AdamW(param_groups, lr=lr, eps=eps)
         else:
             raise NotImplementedError(f"Optimizer {optimizer} not implemented")
-        self.loss = ch.nn.CrossEntropyLoss()
+        if enable_augmentation and smoothing > 0:
+            self.loss = ch.nn.CrossEntropyLoss(label_smoothing=smoothing)
+        else:
+            self.loss = ch.nn.CrossEntropyLoss()
 
     @param('training.epochs')
     @param('lr.eta_min')

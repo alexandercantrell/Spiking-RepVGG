@@ -236,7 +236,9 @@ class Trainer:
     @param('optim.momentum')
     @param('optim.weight_decay')
     @param('optim.sn_weight_decay')
-    def create_optimizer(self, lr, momentum, weight_decay, sn_weight_decay):
+    @param('augment.enable_augmentation')
+    @param('augment.smoothing')
+    def create_optimizer(self, lr, momentum, weight_decay, sn_weight_decay, enable_augmentation, smoothing):
         # Only do weight decay on non-batchnorm parameters
         all_params = list(self.model.named_parameters())
         print(f"Total number of parameters: {len(all_params)}")
@@ -259,7 +261,10 @@ class Trainer:
             'weight_decay': weight_decay
         }]
         self.optimizer = ch.optim.SGD(param_groups, lr=lr, momentum=momentum)
-        self.loss = ch.nn.CrossEntropyLoss()
+        if enable_augmentation and smoothing > 0:
+            self.loss = ch.nn.CrossEntropyLoss(label_smoothing=smoothing)
+        else:
+            self.loss = ch.nn.CrossEntropyLoss()
 
 
     @param('lr.step_size')
