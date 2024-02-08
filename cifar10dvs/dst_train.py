@@ -390,8 +390,9 @@ class Trainer:
                 if self.use_tet:
                     loss_train = 0
                     for i in range(T):
-                        loss_train = loss_train + self.loss(output[i], target) + self.loss(aac[i], target)
+                        loss_train = loss_train + self.loss(output[i], target)
                     loss_train = loss_train/T
+                    loss_train = loss_train + self.loss(aac, target)
                     output = output.mean(dim=0)
                 else:
                     loss_train = self.loss(output, target) + self.loss(aac, target)

@@ -330,9 +330,9 @@ class SRepVGG(nn.Module):
             if y is not None:
                 y = self.avgpool(y)
                 y = self.flatten(y)
-                if not (self.training and self.use_tet):
-                    y = y.mean(0)
-                y = self.aac(y)
+                #if not (self.training and self.use_tet):
+                #    y = y.mean(0)
+                y = self.aac(y.mean(0))
             return x,y
     
     def switch_to_deploy(self):
