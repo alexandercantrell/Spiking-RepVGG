@@ -51,6 +51,7 @@ Section('model', 'model details').params(
     block_type = Param(str,'block type',default='spike_connecting'),
     dsnn = Param(bool,'use dsnn',is_flag=True),
     cnf = Param(str,'cnf',default=None),
+    use_tet = Param(bool,'use tet',is_flag=True),
 )
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
@@ -114,13 +115,15 @@ Section('augment', 'augmentation options').params(
 
 class Trainer:
     @param('dist.distributed')
+    @param('model.use_tet')
     @param('model.resume')
-    def __init__(self, gpu, distributed, resume=None):
+    def __init__(self, gpu, distributed, use_tet=False, resume=None):
         self.all_params = get_current_config()
         self.gpu = gpu
         self.num_classes = 10
         if distributed:
             self.setup_distributed()
+        self.use_tet = use_tet
         self.train_loader, self.val_loader = self.create_data_loaders()
         self.model, self.scaler = self.create_model_and_scaler()
         self.create_augmentation()
@@ -205,12 +208,13 @@ class Trainer:
     @param('model.cupy')
     @param('dist.distributed')
     @param('model.dsnn')
+    @param('model.use_tet')
     @param('model.cnf')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, cupy, block_type, distributed, cnf=None, dsnn=False, sync_bn=None):
+    def create_model_and_scaler(self, arch, cupy, block_type, distributed, dsnn=False, use_tet=False, cnf=None, sync_bn=None):
         scaler = GradScaler()
         if arch in repvgg_model_dict.keys():
-            model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type)
+            model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type, use_tet=use_tet)
         elif arch in resnet_model_dict.keys():
             model = resnet_model_dict[arch](num_classes=self.num_classes,block_type=block_type, cnf=cnf, dsnn=dsnn)
         elif arch in spikeformer_model_dict.keys():
@@ -383,7 +387,14 @@ class Trainer:
             
             with autocast():
                 (output, aac) = self.model(images)
-                loss_train = self.loss(output, target) + self.loss(aac, target)
+                if self.use_tet:
+                    loss_train = 0
+                    for i in range(T):
+                        loss_train = loss_train + self.loss(output[i], target) + self.loss(aac[i], target)
+                    loss_train = loss_train/T
+                    output = output.mean(dim=0)
+                else:
+                    loss_train = self.loss(output, target) + self.loss(aac, target)
             self.scaler.scale(loss_train).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()

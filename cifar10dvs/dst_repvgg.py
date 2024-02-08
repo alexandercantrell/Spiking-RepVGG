@@ -270,9 +270,10 @@ class SpikeConnRepVGGBlock(nn.Module):
         self.deploy=True
 
 class SRepVGG(nn.Module):
-    def __init__(self, cfg_dict, num_classes, deploy=False, scaling1x1=False):
+    def __init__(self, cfg_dict, num_classes, deploy=False, scaling1x1=False, use_tet=False):
         super(SRepVGG, self).__init__()
         self.deploy = deploy
+        self.use_tet = use_tet
         if cfg_dict['block_type'] == 'spike':
             self.block = SpikeRepVGGBlock
         elif cfg_dict['block_type'] == 'spike_connecting':
@@ -323,11 +324,15 @@ class SRepVGG(nn.Module):
             x,y = self.convs((x,None))
             x = self.avgpool(x)
             x = self.flatten(x)
-            x = self.fc(x.mean(0))
+            if not (self.training and self.use_tet):
+                x = x.mean(0)
+            x = self.fc(x)
             if y is not None:
                 y = self.avgpool(y)
                 y = self.flatten(y)
-                y = self.aac(y.mean(0))
+                if not (self.training and self.use_tet):
+                    y = y.mean(0)
+                y = self.aac(y)
             return x,y
     
     def switch_to_deploy(self):
@@ -339,7 +344,7 @@ class SRepVGG(nn.Module):
         self.__delattr__('aac')
         self.deploy = True
 
-def SRepVGG_N0(num_classes, block_type='spike_connecting'):
+def SRepVGG_N0(num_classes, block_type='spike_connecting', use_tet=False):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -350,9 +355,9 @@ def SRepVGG_N0(num_classes, block_type='spike_connecting'):
             {'channels': 32, 'num_blocks': 1, 'stride': 2},
         ],
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, use_tet=use_tet)
 
-def SRepVGG_N1(num_classes, block_type='spike_connecting'):
+def SRepVGG_N1(num_classes, block_type='spike_connecting', use_tet=False):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -363,9 +368,9 @@ def SRepVGG_N1(num_classes, block_type='spike_connecting'):
             {'channels': 128, 'num_blocks': 1, 'stride': 2},
         ],
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, use_tet=use_tet)
 
-def SRepVGG_N2(num_classes, block_type='spike_connecting'):
+def SRepVGG_N2(num_classes, block_type='spike_connecting', use_tet=False):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -376,9 +381,9 @@ def SRepVGG_N2(num_classes, block_type='spike_connecting'):
             {'channels': 256, 'num_blocks': 1, 'stride': 2},
         ],
     }
-    return SRepVGG(cfg_dict, num_classes)
+    return SRepVGG(cfg_dict, num_classes, use_tet=use_tet)
 
-def SRepVGG_N0_Sc1x1(num_classes, block_type='spike_connecting'):
+def SRepVGG_N0_Sc1x1(num_classes, block_type='spike_connecting', use_tet=False):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -389,9 +394,9 @@ def SRepVGG_N0_Sc1x1(num_classes, block_type='spike_connecting'):
             {'channels': 32, 'num_blocks': 1, 'stride': 2},
         ],
     }
-    return SRepVGG(cfg_dict, num_classes, scaling1x1=True)
+    return SRepVGG(cfg_dict, num_classes, scaling1x1=True, use_tet=use_tet)
 
-def SRepVGG_N1_Sc1x1(num_classes, block_type='spike_connecting'):
+def SRepVGG_N1_Sc1x1(num_classes, block_type='spike_connecting', use_tet=False):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -402,9 +407,9 @@ def SRepVGG_N1_Sc1x1(num_classes, block_type='spike_connecting'):
             {'channels': 128, 'num_blocks': 1, 'stride': 2},
         ],
     }
-    return SRepVGG(cfg_dict, num_classes, scaling1x1=True)
+    return SRepVGG(cfg_dict, num_classes, scaling1x1=True, use_tet=use_tet)
 
-def SRepVGG_N2_Sc1x1(num_classes, block_type='spike_connecting'):
+def SRepVGG_N2_Sc1x1(num_classes, block_type='spike_connecting', use_tet=False):
     cfg_dict = {
         'block_type': block_type,
         'layers': [
@@ -415,7 +420,7 @@ def SRepVGG_N2_Sc1x1(num_classes, block_type='spike_connecting'):
             {'channels': 256, 'num_blocks': 1, 'stride': 2},
         ],
     }
-    return SRepVGG(cfg_dict, num_classes, scaling1x1=True)
+    return SRepVGG(cfg_dict, num_classes, scaling1x1=True, use_tet=use_tet)
 
 model_dict = {
     'SRepVGG_N0': SRepVGG_N0,
