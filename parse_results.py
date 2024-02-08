@@ -26,7 +26,7 @@ def parse_results(folder):
                     if os.path.exists(os.path.join(tag_path, 'results.json')):
                         params = json.load(open(os.path.join(tag_path, 'params.json')))
                         res = json.load(open(os.path.join(tag_path, 'results.json')))
-                        check_path = os.path.join(tag_path,'pt','best_checkpoint.pth')
+                        check_path = os.path.join(tag_path,'pt','best_checkpoint.pt')
                         checkpoint = torch.load(check_path,map_location='cpu')
                         results.append({
                             'dataset': dataset,
