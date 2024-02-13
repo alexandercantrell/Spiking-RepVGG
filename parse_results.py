@@ -24,26 +24,38 @@ def parse_results(folder):
                 for tag in os.listdir(block_path):
                     tag_path = os.path.join(block_path, tag)
                     if os.path.exists(os.path.join(tag_path, 'results.json')):
-                        params = json.load(open(os.path.join(tag_path, 'params.json')))
                         res = json.load(open(os.path.join(tag_path, 'results.json')))
-                        check_path = os.path.join(tag_path,'pt','best_checkpoint.pt')
-                        checkpoint = torch.load(check_path,map_location='cpu')
-                        results.append({
-                            'dataset': dataset,
-                            'arch': arch,
-                            'block_type': block_type,
-                            'tag': tag,
-                            'T': params['data.T'],
-                            'lr': params['lr.lr'],
-                            'wd': params['optim.weight_decay'],
+                        res_dict = {
                             'params': res['params_string'],
                             'energy': res['energy_string'],
                             'syops': res['syops_string'],
                             'ac_ops': res['ac_ops_string'],
                             'mac_ops': res['mac_ops_string'],
-                            'best_epoch':checkpoint['epoch'],
-                            'max_acc':checkpoint['max_accuracy'],
-                        })
+                        }
+                    else:
+                        res_dict = {
+                            'params': None,
+                            'energy': None,
+                            'syops': None,
+                            'ac_ops': None,
+                            'mac_ops': None,
+                        }
+                    params = json.load(open(os.path.join(tag_path, 'params.json')))
+                    check_path = os.path.join(tag_path,'pt','best_checkpoint.pt')
+                    checkpoint = torch.load(check_path,map_location='cpu')
+                    results.append({
+                        'dataset': dataset,
+                        'arch': arch,
+                        'block_type': block_type,
+                        'tag': tag,
+                        'T': params['data.T'],
+                        'lr': params['lr.lr'],
+                        'wd': params['optim.weight_decay'],
+                        'best_epoch':checkpoint['epoch'],
+                        'max_acc':checkpoint['max_accuracy'],
+                        **res_dict,
+                    })
+
     results = pd.DataFrame(results)
     print(results.head())
     results.to_csv('results_summary.csv',index=False)
