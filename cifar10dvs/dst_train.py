@@ -332,7 +332,7 @@ class Trainer:
         if hasattr(self.model,'switch_to_deploy'):
             self.model.switch_to_deploy()
         stats = self.val_loop()
-        self.log(f"Reparameterized stats: {stats}")
+        self.log(f"Reparameterized fps: {stats['thru']}")
         self._save_results(stats)
 
     def calculate_complexity(self):
@@ -357,6 +357,8 @@ class Trainer:
 
     def eval_and_log(self):
         self.calculate_complexity()
+        if hasattr(self.model,'switch_to_deploy'):
+            self.model.switch_to_deploy()
         start_val = time.time()
         stats = self.val_loop()
         val_time = time.time() - start_val
@@ -498,8 +500,7 @@ class Trainer:
             'mac_ops_string': self.mac_ops_string,
             'params_string': self.params_string,
             'max_accuracy': self.max_accuracy,
-            'final_acc': stats['top_1'],
-            'final_thru': stats['thru'],
+            'thru': stats['thru'],
         }
         if self.gpu==0:
             with open(os.path.join(self.log_folder, 'results.json'), 'w+') as handle:

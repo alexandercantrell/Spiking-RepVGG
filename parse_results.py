@@ -31,8 +31,7 @@ def parse_results(folder):
                             'syops': res['syops_string'],
                             'ac_ops': res['ac_ops_string'],
                             'mac_ops': res['mac_ops_string'],
-                            'final_acc': res.get('final_acc', None),
-                            'final_thru': res.get('final_thru', None),
+                            'thru': res.get('final_thru', None),
                         }
                     else:
                         res_dict = {
@@ -41,8 +40,7 @@ def parse_results(folder):
                             'syops': None,
                             'ac_ops': None,
                             'mac_ops': None,
-                            'final_acc': None,
-                            'final_thru': None,
+                            'thru': None,
                         }
                     params = json.load(open(os.path.join(tag_path, 'params.json')))
                     if os.path.exists(os.path.join(tag_path,'pt','best_checkpoint.pth')):
