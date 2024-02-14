@@ -22,7 +22,7 @@ from dst_repvgg import model_dict as repvgg_model_dict
 from dst_resnet import model_dict as resnet_model_dict
 from dst_spikeformer import model_dict as spikeformer_model_dict
 
-from spikingjelly.activation_based import neuron, functional
+from spikingjelly.activation_based import neuron, functional, monitor
 from spikingjelly.datasets import cifar10_dvs
 from syops import get_model_complexity_info
 from syops.utils import syops_to_string, params_to_string
@@ -168,6 +168,7 @@ class Tester:
         stats = self.val_loop()
         self.log(f"Reparameterized stats {stats}")
         self._save_results(stats)
+        self.calculate_spike_rates()
 
     def calculate_complexity(self):
         ops, params = get_model_complexity_info(self.model, (2, 128, 128), self.loader, as_strings=False,
@@ -211,6 +212,40 @@ class Tester:
         stats = {k: m.compute().item() for k, m in self.meters.items()}
         [meter.reset() for meter in self.meters.values()]
         return stats
+
+    def calculate_spike_rates(self):
+        model=self.model
+        model.eval()
+        spike_seq_monitor = monitor.OutputMonitor(
+            model, 
+            (
+                neuron.ParametricLIFNode,
+                neuron.LIFNode,
+                neuron.IFNode
+                ), 
+            lambda x: x.flatten(1).mean(1))
+        spike_rates = None
+        cnt = 0
+        with ch.no_grad():
+            with autocast():
+                for images, target in tqdm(self.loader):
+                    images = images.to(self.gpu, non_blocking=True).float()
+                    target = target.to(self.gpu, non_blocking=True)
+                    output = self.model(images)
+                    functional.reset_net(model)
+                    if spike_rates is None:
+                        spike_rates = spike_seq_monitor.records
+                    else:
+                        spike_rates = [spike_rates[i]+spike_seq_monitor.records[i] for i in range(len(spike_rates))]
+                    cnt += 1
+                    spike_seq_monitor.clear_recorded_data()
+        spike_rates = [spike_rate/cnt for spike_rate in spike_rates]
+        spike_seq_monitor.remove_hooks()
+        self.log(f'Spike rates: {spike_rates}')
+        if self.gpu==0:
+            with open(os.path.join(self.log_folder, 'spike_rates.json'), 'w+') as handle:
+                json.dump(spike_rates, handle)
+                    
 
     @param('logging.folder')
     def initialize_logger(self, folder):
