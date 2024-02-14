@@ -222,9 +222,11 @@ class Tester:
             (
                 neuron.ParametricLIFNode,
                 neuron.LIFNode,
-                neuron.IFNode
+                neuron.IFNode,
+                connecting_neuron.ParaConnLIFNode,
+                connecting_neuron.ConnLIFNode,
                 ), 
-            lambda x: x.flatten(1).mean(1))
+            lambda x: x.mean().item())
         spike_rates = None
         
         cnf_seq_monitor = monitor.OutputMonitor(
@@ -232,7 +234,7 @@ class Tester:
             (
                 ConnectingFunction,
                 ), 
-            lambda x: x.flatten(1).mean(1))
+            lambda x: x.mean().item())
         cnf_rates = None
 
         cnt = 0
