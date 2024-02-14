@@ -1,11 +1,7 @@
-import datetime
 import torch as ch
-from torch.cuda.amp import GradScaler
 from torch.cuda.amp import autocast
 import torch.distributed as dist
-from torch.utils.tensorboard import SummaryWriter
 import torchmetrics
-from torchvision import transforms
 import numpy as np
 from tqdm import tqdm
 import math
@@ -81,9 +77,9 @@ class Tester:
         self.num_classes=10
         if distributed:
             self.setup_distributed()
+        self.initialize_logger()
         self.loader = self.create_data_loader()
         self.model = self.create_model()
-        self.initialize_logger()
 
     @param('dist.address')
     @param('dist.port')
@@ -289,11 +285,11 @@ class Tester:
     @classmethod
     @param('dist.distributed')
     def exec(cls, gpu, distributed):
-        trainer = cls(gpu=gpu)
-        trainer.evaluate()
+        tester = cls(gpu=gpu)
+        tester.evaluate()
 
         if distributed:
-            trainer.cleanup_distributed()
+            tester.cleanup_distributed()
 
 
 # Utils
