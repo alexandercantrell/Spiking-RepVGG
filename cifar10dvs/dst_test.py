@@ -153,8 +153,8 @@ class Tester:
 
         model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
         
-        if hasattr(self.model,'switch_to_deploy'):
-            self.model.switch_to_deploy()
+        if hasattr(model,'switch_to_deploy'):
+            model.switch_to_deploy()
 
         if distributed:
             model = ch.nn.parallel.DistributedDataParallel(model, device_ids=[self.gpu])
