@@ -43,7 +43,8 @@ Section('model','model detials').params(
     cupy=Param(bool, 'use cupy backend for neurons',is_flag=True),
     block_type=Param(str, 'block type',default='spike_connecting'),
     dsnn=Param(bool, 'use dsnn', is_flag=True),
-    cnf=Param(str,'cnf',default=None)
+    cnf=Param(str,'cnf',default=None),
+    use_new = Param(bool, 'use new model', is_flag=True)
 )
 
 Section('data', 'data related stuff').params(
@@ -133,9 +134,10 @@ class Tester:
     @param('model.block_type')
     @param('model.cupy')
     @param('dist.distributed')
+    @param('model.use_new')
     @param('model.dsnn')
     @param('model.cnf')
-    def create_model(self, arch, cupy, block_type, distributed, dsnn=False, cnf=None):
+    def create_model(self, arch, cupy, block_type, distributed, use_new=False, dsnn=False, cnf=None):
         if arch in repvgg_model_dict.keys():
             model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type)
         elif arch in resnet_model_dict.keys():
@@ -150,8 +152,8 @@ class Tester:
             functional.set_backend(model,'cupy',instance=connecting_neuron.ParaConnLIFNode)
         
         model = model.to(self.gpu)
-
-        model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
+        if not use_new:
+            model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
         
         if hasattr(model,'switch_to_deploy'):
             model.switch_to_deploy()
