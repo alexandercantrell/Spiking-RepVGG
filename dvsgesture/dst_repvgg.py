@@ -253,7 +253,7 @@ class SpikeConnRepVGGBlock(nn.Module):
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
         w = self.sn.w.data
-        self.sn = neuron.ParametricLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
+        self.sn = neuron.ParametricLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.sn.step_mode, backend=self.sn.backend).to(self.conv3x3.weight.device)
         self.sn.w.data = w
         #for para in self.parameters(): #commented out for syops param count
         #    para.detach_()

@@ -203,7 +203,7 @@ class SpikeConnRepVGGBlock(nn.Module):
                                     padding=1, groups=self.groups, bias=True, step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
-        self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
+        self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.sn.step_mode,backend=self.sn.backend).to(self.conv3x3.weight.device)
         #for para in self.parameters(): #commented out for syops param count
         #    para.detach_()
         self.__delattr__('conv3x3')
