@@ -28,6 +28,7 @@ from syops import get_model_complexity_info
 from syops.utils import syops_to_string, params_to_string
 from ops import MODULES_MAPPING
 import connecting_neuron
+from connecting_functions import ConnectingFunction
 
 SEED=2020
 import random
@@ -225,6 +226,15 @@ class Tester:
                 ), 
             lambda x: x.flatten(1).mean(1))
         spike_rates = None
+        
+        cnf_seq_monitor = monitor.OutputMonitor(
+            model, 
+            (
+                ConnectingFunction,
+                ), 
+            lambda x: x.flatten(1).mean(1))
+        cnf_rates = None
+
         cnt = 0
         with ch.no_grad():
             with autocast():
@@ -235,16 +245,24 @@ class Tester:
                     functional.reset_net(model)
                     if spike_rates is None:
                         spike_rates = spike_seq_monitor.records
+                        cnf_rates = cnf_seq_monitor.records
                     else:
                         spike_rates = [spike_rates[i]+spike_seq_monitor.records[i] for i in range(len(spike_rates))]
+                        cnf_rates = [cnf_rates[i]+cnf_seq_monitor.records[i] for i in range(len(cnf_rates))]
                     cnt += 1
                     spike_seq_monitor.clear_recorded_data()
+                    cnf_seq_monitor.clear_recorded_data()
         spike_rates = [spike_rate/cnt for spike_rate in spike_rates]
+        cnf_rates = [cnf_rate/cnt for cnf_rate in cnf_rates]
         spike_seq_monitor.remove_hooks()
+        cnf_seq_monitor.remove_hooks()
         self.log(f'Spike rates: {spike_rates}')
+        self.log(f'Cnf rates: {cnf_rates}')
         if self.gpu==0:
             with open(os.path.join(self.log_folder, 'spike_rates.json'), 'w+') as handle:
                 json.dump(spike_rates, handle)
+            with open(os.path.join(self.log_folder, 'cnf_rates.json'), 'w+') as handle:
+                json.dump(cnf_rates, handle)
                     
 
     @param('logging.folder')
