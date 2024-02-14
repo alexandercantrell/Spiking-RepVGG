@@ -26,12 +26,13 @@ from dst_repvgg import model_dict as repvgg_model_dict
 from dst_resnet import model_dict as resnet_model_dict
 from dst_spikeformer import model_dict as spikeformer_model_dict
 
-from spikingjelly.activation_based import neuron, functional
+from spikingjelly.activation_based import neuron, functional, monitor
 from spikingjelly.datasets import cifar10_dvs
 from syops import get_model_complexity_info
 from syops.utils import syops_to_string, params_to_string
 from ops import MODULES_MAPPING
 import connecting_neuron
+from connecting_functions import ConnectingFunction
 import autoaugment
 from timm.data import Mixup
 
@@ -355,6 +356,58 @@ class Trainer:
         self.log(f'Total Energy: {self.energy_string}')
         self.log(f'Params: {self.params_string}')
 
+    def calculate_spike_rates(self):
+        model=self.model
+        model.eval()
+        spike_seq_monitor = monitor.OutputMonitor(
+            model, 
+            (
+                neuron.ParametricLIFNode,
+                neuron.LIFNode,
+                neuron.IFNode,
+                connecting_neuron.ParaConnLIFNode,
+                connecting_neuron.ConnLIFNode,
+                ), 
+            lambda x: x.mean().item())
+        spike_rates = None
+        
+        cnf_seq_monitor = monitor.OutputMonitor(
+            model, 
+            (
+                ConnectingFunction,
+                ), 
+            lambda x: x.mean().item())
+        cnf_rates = None
+
+        cnt = 0
+        with ch.no_grad():
+            with autocast():
+                for images, target in tqdm(self.loader):
+                    images = images.to(self.gpu, non_blocking=True).float()
+                    target = target.to(self.gpu, non_blocking=True)
+                    output = self.model(images)
+                    functional.reset_net(model)
+                    if spike_rates is None:
+                        spike_rates = spike_seq_monitor.records
+                        cnf_rates = cnf_seq_monitor.records
+                    else:
+                        spike_rates = [spike_rates[i]+spike_seq_monitor.records[i] for i in range(len(spike_rates))]
+                        cnf_rates = [cnf_rates[i]+cnf_seq_monitor.records[i] for i in range(len(cnf_rates))]
+                    cnt += 1
+                    spike_seq_monitor.clear_recorded_data()
+                    cnf_seq_monitor.clear_recorded_data()
+        spike_rates = [spike_rate/cnt for spike_rate in spike_rates]
+        cnf_rates = [cnf_rate/cnt for cnf_rate in cnf_rates]
+        spike_seq_monitor.remove_hooks()
+        cnf_seq_monitor.remove_hooks()
+        self.log(f'Spike rates: {spike_rates}')
+        self.log(f'Cnf rates: {cnf_rates}')
+        if self.gpu==0:
+            with open(os.path.join(self.log_folder, 'spike_rates.json'), 'w+') as handle:
+                json.dump(spike_rates, handle)
+            with open(os.path.join(self.log_folder, 'cnf_rates.json'), 'w+') as handle:
+                json.dump(cnf_rates, handle)
+
     def eval_and_log(self):
         self.calculate_complexity()
         if hasattr(self.model,'switch_to_deploy'):
@@ -368,6 +421,7 @@ class Trainer:
                 current_lr=self.optimizer.param_groups[0]['lr'],
                 val_time=val_time
             ))
+        self.calculate_spike_rates()
         self._save_results(stats)
 
     def train_loop(self):
