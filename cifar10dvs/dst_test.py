@@ -167,7 +167,7 @@ class Tester:
         self.calculate_complexity()
         stats = self.val_loop()
         self.log(f"Reparameterized stats {stats}")
-        self._save_results(stats, self.all_params['dist.distributed'])
+        self._save_results(stats)
 
     def calculate_complexity(self):
         ops, params = get_model_complexity_info(self.model, (2, 128, 128), self.loader, as_strings=False,
