@@ -200,15 +200,11 @@ class Tester:
                     if type(output) is tuple:
                         output, aac = output
                     if hasattr(self.model,'dsnn') and self.model.dsnn:
-                        loss_val = self.loss(output,target) + self.loss(aac,target)
                         output = output + aac
-                    else:
-                        loss_val = self.loss(output,target)
                     self.meters['top_1'].update(output, target)
                     self.meters['top_5'].update(output, target)
                     batch_size = target.shape[0]
                     self.meters['thru'].update(ch.tensor(batch_size/(end-start)))
-                    self.meters['loss'].update(loss_val)
 
         stats = {k: m.compute().item() for k, m in self.meters.items()}
         [meter.reset() for meter in self.meters.values()]
@@ -220,7 +216,6 @@ class Tester:
             'top_1': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes).to(self.gpu),
             'top_5': torchmetrics.Accuracy(task='multiclass',num_classes=self.num_classes, top_k=5).to(self.gpu),
             'thru': MeanScalarMetric().to(self.gpu),
-            'loss': MeanScalarMetric().to(self.gpu)
         }
 
         if self.gpu == 0:
