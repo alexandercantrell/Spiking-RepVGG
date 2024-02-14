@@ -194,9 +194,11 @@ class Tester:
                     start = time.time()
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
-                    (output, aac) = self.model(images)
+                    output = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
+                    if type(output) is tuple:
+                        output, aac = output
                     if hasattr(self.model,'dsnn') and self.model.dsnn:
                         loss_val = self.loss(output,target) + self.loss(aac,target)
                         output = output + aac
