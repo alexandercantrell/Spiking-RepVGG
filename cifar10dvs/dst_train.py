@@ -329,11 +329,16 @@ class Trainer:
         self.log(f'Training time {train_time_str}')
         self.log(f'Max accuracy {self.max_accuracy}')
         self.calculate_complexity()
-        self._save_results()
+        if hasattr(self.model,'switch_to_deploy'):
+            self.model.switch_to_deploy()
+        stats = self.val_loop()
+        self.log(f"Reparameterized stats: {stats}")
+        self._save_results(stats)
 
     def calculate_complexity(self):
         self.model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
-        self.model.switch_to_deploy()
+        if hasattr(self.model,'switch_to_deploy'):
+            self.model.switch_to_deploy()
         ops, params = get_model_complexity_info(self.model, (2, 128, 128), self.val_loader, as_strings=False,
                                                  print_per_layer_stat=True, verbose=True, custom_modules_hooks=MODULES_MAPPING)
         self.syops_count = ops
@@ -351,6 +356,7 @@ class Trainer:
         self.log(f'Params: {self.params_string}')
 
     def eval_and_log(self):
+        self.calculate_complexity()
         start_val = time.time()
         stats = self.val_loop()
         val_time = time.time() - start_val
@@ -360,6 +366,7 @@ class Trainer:
                 current_lr=self.optimizer.param_groups[0]['lr'],
                 val_time=val_time
             ))
+        self._save_results(stats)
 
     def train_loop(self):
         model = self.model
@@ -478,7 +485,7 @@ class Trainer:
             fd.flush()
 
     @param('dist.distributed')
-    def _save_results(self, distributed):
+    def _save_results(self, stats, distributed):
         if distributed:
             dist.barrier()
         results = {
@@ -491,6 +498,8 @@ class Trainer:
             'mac_ops_string': self.mac_ops_string,
             'params_string': self.params_string,
             'max_accuracy': self.max_accuracy,
+            'final_acc': stats['top_1'],
+            'final_thru': stats['thru'],
         }
         if self.gpu==0:
             with open(os.path.join(self.log_folder, 'results.json'), 'w+') as handle:
