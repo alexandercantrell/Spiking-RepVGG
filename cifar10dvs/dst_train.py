@@ -335,6 +335,7 @@ class Trainer:
         stats = self.val_loop()
         self.log(f"Reparameterized fps: {stats['thru']}")
         self._save_results(stats)
+        self.calculate_spike_rates()
 
     def calculate_complexity(self):
         self.model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
