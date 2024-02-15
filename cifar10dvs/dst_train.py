@@ -383,7 +383,7 @@ class Trainer:
         cnt = 0
         with ch.no_grad():
             with autocast():
-                for images, target in tqdm(self.loader):
+                for images, target in tqdm(self.val_loader):
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
                     output = self.model(images)
