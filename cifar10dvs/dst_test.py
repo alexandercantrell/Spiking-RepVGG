@@ -6,8 +6,6 @@ import numpy as np
 from tqdm import tqdm
 import math
 
-import shutil
-
 import os
 import time
 import json
