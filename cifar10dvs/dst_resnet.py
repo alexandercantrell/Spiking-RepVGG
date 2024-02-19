@@ -260,7 +260,7 @@ class SpikeResNetBlock(nn.Module):
 
         if not self.dsnn:
             self.__delattr__('aac')
-        else:
+        elif isinstance(self.aac, AACBlock):
             self.aac.switch_to_deploy()
 
         self.__delattr__('conv1')
@@ -385,7 +385,7 @@ class SpikeConnResNetBlock(nn.Module):
 
         if not self.dsnn:
             self.__delattr__('aac')
-        else:
+        elif isinstance(self.aac, AACBlock):
             self.aac.switch_to_deploy()
 
         self.__delattr__('conv1')
@@ -512,7 +512,7 @@ class SEWResNetBlock(nn.Module):
 
         if not self.dsnn:
             self.__delattr__('aac')
-        else:
+        elif isinstance(self.aac, AACBlock):
             self.aac.switch_to_deploy()
 
         self.__delattr__('conv1')
