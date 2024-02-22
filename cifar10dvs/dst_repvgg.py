@@ -31,6 +31,7 @@ def convrelupxp(in_channels, out_channels, stride=1):
 class ConversionBlock(nn.Module):
     def __init__(self, in_channels, deploy=False, set_y = True):
         super(ConversionBlock, self).__init__()
+        self.in_channels = in_channels
         self.deploy = deploy
         self.set_y = set_y
         if deploy:
@@ -58,9 +59,9 @@ class ConversionBlock(nn.Module):
         beta = bn.bias
         eps = bn.eps
         std = torch.sqrt(running_var + eps)
-        t = (std/gamma).reshape(-1, 1, 1, 1)
+        t = std/gamma
         b = beta*t - running_mean
-        return t, b
+        return t.reshape(1,-1,1,1), b.reshape(1,-1,1,1)
     
     def switch_to_deploy(self):
         if isinstance(self.sn, BNPLIFNode):

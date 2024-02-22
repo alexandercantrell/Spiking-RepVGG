@@ -23,7 +23,7 @@ class BNPLIFNode(BaseNode):
         if bias.shape==1:
             bias = bias.reshape(1, -1, 1, 1)
         self.bias = bias
-        self.cupy_thresh = self.cupy_bias = self.cupy_reset = None
+        self.cupy_thresh = self.cupy_bias = self.cupy_reset = None #TODO: add support for other reset values. currently only 0 is supported
 
     @property
     def supported_backends(self):
