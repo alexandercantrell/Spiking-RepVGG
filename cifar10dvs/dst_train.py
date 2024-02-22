@@ -212,7 +212,7 @@ class Trainer:
     @param('model.conversion_set_y')
     @param('model.cnf')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, cupy, block_type, distributed, dsnn=False, conversion=False, conversion_set_y = True, cnf=None, sync_bn=None):
+    def create_model_and_scaler(self, arch, cupy, block_type, distributed, dsnn=False, conversion=False, conversion_set_y = False, cnf=None, sync_bn=None):
         scaler = GradScaler()
         if arch in repvgg_model_dict.keys():
             model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type,conversion=conversion,conversion_set_y=conversion_set_y)
