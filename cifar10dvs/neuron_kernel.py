@@ -426,7 +426,7 @@ class ParametricBNLIFNodeFPTTKernel(BatchNormNeuronFPTTKernel):
 
         return codes
 
-class ParametricBNLIFNodeATGF(BatchNormNeuronATGFBase):
+class ParametricBNLIFNodeATGF(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x_seq: torch.Tensor, v_init: torch.Tensor, v_th: torch.Tensor, v_bias: torch.Tensor, v_reset: Optional[float], decay: torch.Tensor, forward_kernel: ParametricBNLIFNodeFPTTKernel):
         if x_seq.dtype == torch.float16 and v_init.numel() % 2 != 0:
@@ -439,7 +439,7 @@ class ParametricBNLIFNodeATGF(BatchNormNeuronATGFBase):
             'v_reset': v_reset,
             'decay': decay,
         }
-        blocks, threads, py_dict = NeuronATGFBase.pre_forward(py_dict)
+        blocks, threads, py_dict = BatchNormNeuronATGFBase.pre_forward(py_dict)
 
 
         if py_dict['v_reset'] is None:
