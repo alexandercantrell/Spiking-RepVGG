@@ -342,7 +342,7 @@ class BatchNormNeuronFPTTKernel(base.CKernel2D):
             reverse=False)
         self.hard_reset = hard_reset
         self.dtype = dtype
-        self.add_param(ctype=f'const {dtype} *', cname='x_seq')
+        self.add_param(ctype=f'{dtype} *', cname='x_seq')
         self.add_param(ctype=f'{dtype} *', cname='v_v_seq')
         self.add_param(ctype=f'{dtype} *', cname='h_seq')
         self.add_param(ctype=f'{dtype} *', cname='spike_seq')
@@ -357,7 +357,7 @@ class BatchNormNeuronFPTTKernel(base.CKernel2D):
     @property
     def core(self):
         core_codes = base.CodeTyper(18)
-        core_codes.append(cfunction.add(z='x_seq[t]', x='x_seq[t]', y='v_bias[t]', dtype=self.dtype))
+        core_codes.append(cfunction.add(z='x_seq[t]', x='x_seq[t]', y='v_bias', dtype=self.dtype))
         core_codes.append(self.neuronal_charge())
 
         core_codes.append(neuronal_fire(spike='spike_seq[t]', v='h_seq[t]', v_th='v_th', dtype=self.dtype))

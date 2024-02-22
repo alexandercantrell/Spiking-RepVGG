@@ -64,10 +64,13 @@ class ConversionBlock(nn.Module):
         return t.reshape(1,-1,1,1), b.reshape(1,-1,1,1)
     
     def switch_to_deploy(self):
+        pass
         if isinstance(self.sn, BNPLIFNode):
             return
         scale, bias = self._bn_tensor(self.bn)
-        self.sn = BNPLIFNode(scale, bias, v_threshold=V_THRESHOLD, detach_reset=True, step_mode=self.sn.step_mode, backend=self.sn.backend).to(self.bn.weight)
+        w = self.sn.w.data
+        self.sn = BNPLIFNode(scale, bias, v_threshold=V_THRESHOLD, detach_reset=True, step_mode=self.sn.step_mode).to(self.bn.weight)#TODO: fix cupy backend and add backend param later
+        self.sn.w.data = w
         self.__delattr__('bn')
         self.deploy=True
 
