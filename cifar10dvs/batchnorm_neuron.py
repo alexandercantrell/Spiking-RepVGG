@@ -29,7 +29,7 @@ class BNPLIFNode(BaseNode):
         if self.step_mode == 's':
             return ('torch',)
         elif self.step_mode =='m':
-            return ('torch',)
+            return ('torch','cupy')
         else:
             raise ValueError(self.step_mode)
         
