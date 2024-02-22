@@ -1,8 +1,8 @@
 import math
 import torch
 import logging
-from spikingjelly.activation_based.auto_cuda.neuron_kernel import NeuronFPTTKernel, NeuronBPTTKernel, NeuronATGFBase, if_requires_grad, scalar_to_cupy, new_tensors
-from spikingjelly.activation_based.auto_cuda import base, cfunction, neuronal_fire, neuronal_hard_reset, neuronal_soft_reset
+from spikingjelly.activation_based.auto_cuda.neuron_kernel import NeuronFPTTKernel, NeuronBPTTKernel, NeuronATGFBase, if_requires_grad, scalar_to_cupy, new_tensors, neuronal_fire, neuronal_hard_reset, neuronal_soft_reset
+from spikingjelly.activation_based.auto_cuda import base, cfunction
 from spikingjelly.activation_based import cuda_utils
 from spikingjelly import configure
 from typing import Callable, Optional
