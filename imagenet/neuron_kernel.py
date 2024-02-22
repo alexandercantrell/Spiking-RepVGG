@@ -16,7 +16,7 @@ class ConnectingIFNodeFPTTKernel(NeuronFPTTKernel):
 class ConnectingIFNodeBPTTKernel(NeuronBPTTKernel):
     def __init__(self, surrogate_function, hard_reset: bool = True, detach_reset: bool = True, dtype: str = 'float'):
         super().__init__(surrogate_function, hard_reset, detach_reset, dtype)
-        self.add_param(ctype=f'const {dtype} *', cname='grad_s_seq')
+        self.add_param(ctype=f'{dtype} *', cname='grad_s_seq')
 
     def grad_h_next_to_v(self) -> str:
         return cfunction.constant(y=f'const {self.dtype} grad_h_next_to_v', x=1., dtype=self.dtype)

@@ -41,6 +41,8 @@ Section('model','model detials').params(
     arch=Param(str,'model arch',required=True),
     cupy=Param(bool, 'use cupy backend for neurons',is_flag=True),
     block_type=Param(str, 'block type',default='spike_connecting'),
+    conversion=Param(bool,'use bnplif',is_flag=True),
+    conversion_set_y=Param(bool,'set y',is_flag=True),
     dsnn=Param(bool, 'use dsnn', is_flag=True),
     cnf=Param(str,'cnf',default=None),
     use_new = Param(bool, 'use new model', is_flag=True)
@@ -135,10 +137,12 @@ class Tester:
     @param('dist.distributed')
     @param('model.use_new')
     @param('model.dsnn')
+    @param('model.conversion')
+    @param('model.conversion_set_y')
     @param('model.cnf')
-    def create_model(self, arch, cupy, block_type, distributed, use_new=False, dsnn=False, cnf=None):
+    def create_model(self, arch, cupy, block_type, distributed, use_new=False, dsnn=False, conversion=False, conversion_set_y = True, cnf=None):
         if arch in repvgg_model_dict.keys():
-            model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type)
+            model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type,conversion=conversion,conversion_set_y=conversion_set_y)
         elif arch in resnet_model_dict.keys():
             model = resnet_model_dict[arch](num_classes=self.num_classes,block_type=block_type, cnf=cnf, dsnn=dsnn)
         elif arch in spikeformer_model_dict.keys():

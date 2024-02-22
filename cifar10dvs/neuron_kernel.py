@@ -1,8 +1,17 @@
+import math
 import torch
-from spikingjelly.activation_based.auto_cuda.neuron_kernel import NeuronFPTTKernel, NeuronBPTTKernel, NeuronATGFBase
-from spikingjelly.activation_based.auto_cuda import base, cfunction
+import logging
+from spikingjelly.activation_based.auto_cuda.neuron_kernel import NeuronFPTTKernel, NeuronBPTTKernel, NeuronATGFBase, if_requires_grad, scalar_to_cupy, new_tensors
+from spikingjelly.activation_based.auto_cuda import base, cfunction, neuronal_fire, neuronal_hard_reset, neuronal_soft_reset
+from spikingjelly.activation_based import cuda_utils
 from spikingjelly import configure
-from typing import Callable
+from typing import Callable, Optional
+
+try:
+    import cupy
+except BaseException as e:
+    logging.info(f'spikingjelly.activation_based.auto_cuda.neuronal_kernel: {e}')
+    cupy = None
 
 class ParametricConnectingLIFNodeFPTTKernel(NeuronFPTTKernel):
     def __init__(self, decay_input: bool, hard_reset: bool, dtype: str):
@@ -158,7 +167,7 @@ class ParametricConnectingLIFNodeBPTTKernel(NeuronBPTTKernel):
 
 class ParametricConnectingLIFNodeATGF(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x_seq: torch.Tensor, s_seq:torch.Tensor, v_init: torch.Tensor, v_th: float, v_reset: float or None, decay: torch.Tensor, forward_kernel: ParametricConnectingLIFNodeFPTTKernel, backward_kernel: ParametricConnectingLIFNodeBPTTKernel):
+    def forward(ctx, x_seq: torch.Tensor, s_seq:torch.Tensor, v_init: torch.Tensor, v_th: float, v_reset: Optional[float], decay: torch.Tensor, forward_kernel: ParametricConnectingLIFNodeFPTTKernel, backward_kernel: ParametricConnectingLIFNodeBPTTKernel):
         if x_seq.dtype == torch.float16 and v_init.numel() % 2 != 0:
             raise ValueError('When using the the PLIF neuron with half2 cupy backend, the numer of neurons should be even to avoid the wrong gradient of tau caused by padding!')
         py_dict = {
@@ -261,7 +270,7 @@ class LIFNodeBPTTKernel(NeuronBPTTKernel):
 
 class LIFNodeATGF(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x_seq: torch.Tensor, s_seq:torch.Tensor, v_init: torch.Tensor, v_th: float, v_reset: float or None, decay: float,
+    def forward(ctx, x_seq: torch.Tensor, s_seq:torch.Tensor, v_init: torch.Tensor, v_th: float, v_reset: Optional[float], decay: float,
                 forward_kernel: LIFNodeFPTTKernel, backward_kernel: LIFNodeBPTTKernel):
         py_dict = {
             'x_seq': x_seq,
@@ -307,3 +316,138 @@ class LIFNodeATGF(torch.autograd.Function):
 
 
         return py_dict['grad_x_seq'], py_dict['grad_s_seq'], py_dict['grad_v_init'], None, None, None, None, None
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class BatchNormNeuronFPTTKernel(base.CKernel2D):
+    def __init__(self, hard_reset: bool, dtype: str):
+        super().__init__(
+            kernel_name=f'{self.__class__.__name__}_{dtype}_{"hard_reset" if hard_reset else "soft_reset"}',
+            reverse=False)
+        self.hard_reset = hard_reset
+        self.dtype = dtype
+        self.add_param(ctype=f'const {dtype} *', cname='x_seq')
+        self.add_param(ctype=f'{dtype} *', cname='v_v_seq')
+        self.add_param(ctype=f'{dtype} *', cname='h_seq')
+        self.add_param(ctype=f'{dtype} *', cname='spike_seq')
+        self.add_param(ctype=f'{dtype} *', cname='v_th')
+        self.add_param(ctype=f'{dtype} *', cname='v_bias')
+        if hard_reset:
+            self.add_param(ctype=f'{dtype} &', cname='v_reset')
+
+    def neuronal_charge(self) -> str:
+        return '// neuronal_charge should be defined here!'
+
+    @property
+    def core(self):
+        core_codes = base.CodeTyper(18)
+        core_codes.append(cfunction.add(z='x_seq[t]', x='x_seq[t]', y='v_bias[t]', dtype=self.dtype))
+        core_codes.append(self.neuronal_charge())
+
+        core_codes.append(neuronal_fire(spike='spike_seq[t]', v='h_seq[t]', v_th='v_th', dtype=self.dtype))
+
+        if self.hard_reset:
+            core_codes.append(
+                neuronal_hard_reset(v_next='v_v_seq[t + dt]', h='h_seq[t]', spike='spike_seq[t]', v_reset='v_reset',
+                                    dtype=self.dtype))
+        else:
+            core_codes.append(
+                neuronal_soft_reset(v_next='v_v_seq[t + dt]', h='h_seq[t]', spike='spike_seq[t]', v_th='v_th',
+                                    dtype=self.dtype))
+
+        self._core = core_codes.codes
+        return self._core
+
+class BatchNormNeuronATGFBase:
+    @staticmethod
+    def pre_forward(py_dict: dict):
+        device = py_dict['x_seq'].get_device()
+        scalar_to_cupy(py_dict)
+
+        new_tensors(('h_seq', 'spike_seq', 'v_seq'), py_dict)
+        py_dict['v_v_seq'] = torch.cat((py_dict.pop('v_init').unsqueeze(0), py_dict.pop('v_seq')))
+        numel = py_dict['x_seq'].numel()
+        N = py_dict['x_seq'].shape[1]
+        threads = configure.cuda_threads
+        if py_dict['x_seq'].dtype == torch.float16:
+            # we will take two neurons to calculate as one neuron in cuda half2
+            # pad will be implemented by the kernel.__call__
+            N = math.ceil(N / 2)
+            numel = N * py_dict['x_seq'].shape[0]
+
+        blocks = cuda_utils.cal_blocks(N)
+
+        with cuda_utils.DeviceEnvironment(device):
+            numel = cupy.asarray(numel)
+            N = cupy.asarray(N)
+
+        py_dict['numel'] = numel
+        py_dict['N'] = N
+
+        return blocks, threads, py_dict
+
+class ParametricBNLIFNodeFPTTKernel(BatchNormNeuronFPTTKernel):
+    def __init__(self, decay_input: bool, hard_reset: bool, dtype: str):
+        super().__init__(hard_reset, dtype)
+        self.decay_input = decay_input
+        self.add_param(ctype=f'const {dtype} *', cname='decay')
+
+    def neuronal_charge(self) -> str:
+        if self.hard_reset:
+            codes = cfunction.sub(z=f'{self.dtype} LIFNodeFPTTKernel_temp_var', x='v_v_seq[t]', y='v_reset', dtype=self.dtype)
+        else:
+            codes = f'{self.dtype} LIFNodeFPTTKernel_temp_var = v_v_seq[t];'
+        if self.decay_input:
+            codes += cfunction.sub(z='LIFNodeFPTTKernel_temp_var', x='x_seq[t]', y='LIFNodeFPTTKernel_temp_var', dtype=self.dtype)
+            codes += cfunction.mul(z='LIFNodeFPTTKernel_temp_var', x='decay[0]', y='LIFNodeFPTTKernel_temp_var', dtype=self.dtype)
+        else:
+            codes += cfunction.mul(z='LIFNodeFPTTKernel_temp_var', x='decay[0]', y='LIFNodeFPTTKernel_temp_var',
+                                   dtype=self.dtype)
+            codes += cfunction.sub(z='LIFNodeFPTTKernel_temp_var', x='x_seq[t]', y='LIFNodeFPTTKernel_temp_var',
+                                   dtype=self.dtype)
+
+        codes += cfunction.add(z='h_seq[t]', x='LIFNodeFPTTKernel_temp_var', y='v_v_seq[t]', dtype=self.dtype)
+
+        return codes
+
+class ParametricBNLIFNodeATGF(BatchNormNeuronATGFBase):
+    @staticmethod
+    def forward(ctx, x_seq: torch.Tensor, v_init: torch.Tensor, v_th: torch.Tensor, v_bias: torch.Tensor, v_reset: Optional[float], decay: torch.Tensor, forward_kernel: ParametricBNLIFNodeFPTTKernel):
+        if x_seq.dtype == torch.float16 and v_init.numel() % 2 != 0:
+            raise ValueError('When using the the PLIF neuron with half2 cupy backend, the numer of neurons should be even to avoid the wrong gradient of tau caused by padding!')
+        py_dict = {
+            'x_seq': x_seq,
+            'v_init': v_init,
+            'v_th': v_th,
+            'v_bias': v_bias,
+            'v_reset': v_reset,
+            'decay': decay,
+        }
+        blocks, threads, py_dict = NeuronATGFBase.pre_forward(py_dict)
+
+
+        if py_dict['v_reset'] is None:
+            py_dict.pop('v_reset')
+
+        forward_kernel((blocks,), (threads,), py_dict)
+
+        if 'v_reset' not in py_dict:
+            py_dict['v_reset'] = None
+
+        return py_dict['spike_seq'], py_dict['v_v_seq'][1:, ]

@@ -50,6 +50,8 @@ Section('model', 'model details').params(
     resume = Param(str,'checkpoint to load from',default=None),
     cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     block_type = Param(str,'block type',default='spike_connecting'),
+    conversion=Param(bool,'use bnplif',is_flag=True),
+    conversion_set_y=Param(bool,'set y',is_flag=True),
     dsnn = Param(bool,'use dsnn',is_flag=True),
     cnf = Param(str,'cnf',default=None),
 )
@@ -206,12 +208,14 @@ class Trainer:
     @param('model.cupy')
     @param('dist.distributed')
     @param('model.dsnn')
+    @param('model.conversion')
+    @param('model.conversion_set_y')
     @param('model.cnf')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, cupy, block_type, distributed, dsnn=False, cnf=None, sync_bn=None):
+    def create_model_and_scaler(self, arch, cupy, block_type, distributed, dsnn=False, conversion=False, conversion_set_y = True, cnf=None, sync_bn=None):
         scaler = GradScaler()
         if arch in repvgg_model_dict.keys():
-            model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type)
+            model = repvgg_model_dict[arch](num_classes=self.num_classes,block_type=block_type,conversion=conversion,conversion_set_y=conversion_set_y)
         elif arch in resnet_model_dict.keys():
             model = resnet_model_dict[arch](num_classes=self.num_classes,block_type=block_type, cnf=cnf, dsnn=dsnn)
         elif arch in spikeformer_model_dict.keys():
