@@ -3,7 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_neuron import ConnLIFNode
+from batchnorm_neuron import BNPLIFNode
 from collections import OrderedDict
+
+V_THRESHOLD = 1.0
 
 def convrelupxp(in_channels, out_channels, stride=1):
     if stride != 1:
@@ -23,6 +26,52 @@ def convrelupxp(in_channels, out_channels, stride=1):
                 ('relu', nn.ReLU())
             ])
         )
+    
+class ConversionBlock(nn.Module):
+    def __init__(self, in_channels, deploy=False, set_y = True):
+        super(ConversionBlock, self).__init__()
+        self.in_channels = in_channels
+        self.deploy = deploy
+        self.set_y = set_y
+        if deploy:
+            scale = torch.ones(1, in_channels, 1, 1)
+            bias = torch.zeros(1, in_channels, 1, 1)
+            self.sn = BNPLIFNode(scale, bias, v_threshold=V_THRESHOLD, detach_reset=True)
+        else:
+            self.bn = layer.BatchNorm2d(in_channels)
+            self.sn = neuron.ParametricLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan())
+
+    def forward(self, x):
+        if self.deploy:
+            return self.sn(x)
+        else:
+            x, y = x
+            out = self.bn(x)
+            if self.training and self.set_y:
+                y = out
+            return self.sn(out), y
+        
+    def _bn_tensor(self, bn):
+        running_mean = bn.running_mean
+        running_var = bn.running_var
+        gamma = bn.weight
+        beta = bn.bias
+        eps = bn.eps
+        std = torch.sqrt(running_var + eps)
+        t = std/gamma
+        b = beta*t - running_mean
+        return t.reshape(1,-1,1,1), b.reshape(1,-1,1,1)
+    
+    def switch_to_deploy(self):
+        pass
+        if isinstance(self.sn, BNPLIFNode):
+            return
+        scale, bias = self._bn_tensor(self.bn)
+        w = self.sn.w.data
+        self.sn = BNPLIFNode(scale, bias, v_threshold=V_THRESHOLD, detach_reset=True, step_mode=self.sn.step_mode).to(self.bn.weight)#TODO: fix cupy backend and add backend param later
+        self.sn.w.data = w
+        self.__delattr__('bn')
+        self.deploy=True
 
 class Rep3x3(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1, groups=1, deploy=False):
@@ -36,7 +85,7 @@ class Rep3x3(nn.Module):
 
         if deploy:
             self.reparm = layer.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, groups=groups, padding=1, bias=True)
-            self.sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+            self.sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
         else:
             self.conv3x3 = layer.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, groups=groups, padding=1, bias=False)
             self.bn3x3 = layer.BatchNorm2d(out_channels)
@@ -44,10 +93,10 @@ class Rep3x3(nn.Module):
             self.bn = layer.BatchNorm2d(out_channels)
             if self.identity:
                 self.aac = nn.Identity()
-                self.sn = ConnLIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+                self.sn = ConnLIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
             else:
                 self.aac = convrelupxp(in_channels, out_channels, stride=stride)
-                self.sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+                self.sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
                 
 
     def forward(self, x):
@@ -113,7 +162,7 @@ class Rep3x3(nn.Module):
                                     padding=1, groups=self.groups, bias=True, step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         self.reparam.weight.data = kernel
         self.reparam.bias.data = bias
-        self.sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
+        self.sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.conv3x3.step_mode).to(self.conv3x3.weight.device)
         #for para in self.parameters(): #commented out for syops param count
         #    para.detach_()
         self.__delattr__('conv3x3')
@@ -135,16 +184,16 @@ class Rep1x1(nn.Module):
 
         if deploy:
             self.reparm = layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, groups=groups, bias=True)
-            self.sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+            self.sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
         else:
             self.conv1x1 = layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, groups=groups, bias=False)
             self.bn = layer.BatchNorm2d(out_channels)
             if self.identity:
                 self.aac = nn.Identity()
-                self.sn = ConnLIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+                self.sn = ConnLIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
             else:
                 self.aac = convrelupxp(in_channels, out_channels, stride=stride)
-                self.sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+                self.sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
                 
 
     def forward(self, x):
@@ -247,11 +296,11 @@ class RepSSA(nn.Module):
             self.proj_conv = layer.Conv1d(dim, dim, kernel_size=1, stride=1, bias=False)
             self.proj_bn = layer.BatchNorm1d(dim)
 
-        self.q_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-        self.k_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-        self.v_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-        self.attn_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
-        self.proj_sn = ConnLIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.q_sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.k_sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.v_sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.attn_sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.proj_sn = ConnLIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
 
     def forward(self, x):
         if self.deploy:
@@ -346,11 +395,11 @@ class RepSSA(nn.Module):
         self.proj_reparam.weight.data = proj_kernel
         self.proj_reparam.bias.data = proj_bias
 
-        self.q_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.q_conv.step_mode).to(self.q_conv.weight.device)
-        self.k_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.k_conv.step_mode).to(self.k_conv.weight.device)
-        self.v_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.v_conv.step_mode).to(self.v_conv.weight.device)
-        self.attn_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.proj_conv.step_mode).to(self.proj_conv.weight.device)
-        self.proj_sn = ConnLIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.proj_conv.step_mode).to(self.proj_conv.weight.device)
+        self.q_sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.q_conv.step_mode).to(self.q_conv.weight.device)
+        self.k_sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.k_conv.step_mode).to(self.k_conv.weight.device)
+        self.v_sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.v_conv.step_mode).to(self.v_conv.weight.device)
+        self.attn_sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.proj_conv.step_mode).to(self.proj_conv.weight.device)
+        self.proj_sn = ConnLIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.proj_conv.step_mode).to(self.proj_conv.weight.device)
         #for para in self.parameters(): #commented out for syops param count
         #    para.detach_()
         self.__delattr__('q_conv')
@@ -395,7 +444,7 @@ class RepSCSBlock(nn.Module):
             self.proj_conv = layer.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=2, bias=False, padding=self.padding)
             self.proj_bn = layer.BatchNorm2d(out_channels)
             self.aac = convrelupxp(in_channels, out_channels, stride=2)
-        self.proj_sn = neuron.LIFNode(tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
+        self.proj_sn = neuron.LIFNode(v_threshold=V_THRESHOLD, tau=2.0, detach_reset=True, surrogate_function=surrogate.ATan())
 
         self.mlp = RepMLP(out_channels, out_channels, num_blocks=mlp_depth, kernel=mlp_kernel, deploy=deploy)
 
@@ -471,10 +520,14 @@ class RepSCS(nn.Module):
 
 class RepSpikeFormer(nn.Module):
     def __init__(self, img_size=(128,128), patch_size=4, in_channels=2, num_classes=10,
-                embed_dims=256, num_heads=8, scs_depths=[2,2,2,2], scs_kernel=2, mlp_depths=[2,2], mlp_kernel=1, deploy=False):
+                embed_dims=256, num_heads=8, scs_depths=[2,2,2,2], scs_kernel=2, mlp_depths=[2,2], mlp_kernel=1, conversion=False, conversion_set_y=True, deploy=False):
         super(RepSpikeFormer, self).__init__()
         self.num_classes = num_classes
         self.deploy = deploy
+        if conversion:
+            self.converter = ConversionBlock(in_channels, deploy, conversion_set_y)
+        else:
+            self.converter=None
         self.patch_embed = RepSCS(img_size, patch_size, in_channels, embed_dims, scs_depths, scs_kernel, deploy)
         self.attn_blocks = nn.Sequential(*[
             RepEncoderBlock(embed_dims, num_heads, mlp_depth, mlp_kernel=mlp_kernel, deploy=deploy) for mlp_depth in mlp_depths
@@ -500,13 +553,18 @@ class RepSpikeFormer(nn.Module):
     def forward(self, x):
         x = x.permute(1,0,2,3,4)
         if self.deploy:
+            if self.converter is not None:
+                x = self.converter(x)
             x = self.patch_embed(x)
             x = self.attn_blocks(x)
             x = x.flatten(3).mean(3).mean(0)
             x = self.fc(x)
             return x
         else:
-            (x,y) = self.patch_embed((x,None))
+            y=None
+            if self.converter is not None:
+                (x,y) = self.converter((x,y))
+            (x,y) = self.patch_embed((x,y))
             (x,y) = self.attn_blocks((x,y))
             x = x.flatten(3).mean(3).mean(0)
             x = self.fc(x)
@@ -516,12 +574,14 @@ class RepSpikeFormer(nn.Module):
             return x, y
         
     def switch_to_deploy(self):
+        if self.converter is not None:
+            self.converter.switch_to_deploy()
         self.patch_embed.switch_to_deploy()
         for block in self.attn_blocks:
             block.switch_to_deploy()
         self.deploy=True
 
-def RepSpikeFormerA0(num_classes=10, deploy=False):
+def RepSpikeFormerA0(num_classes=10, deploy=False, conversion=False, conversion_set_y=True):
     return RepSpikeFormer(
         img_size=(128,128),
         patch_size=(16,16),
@@ -533,10 +593,12 @@ def RepSpikeFormerA0(num_classes=10, deploy=False):
         scs_kernel=2,
         mlp_depths=[2,2],
         mlp_kernel=1,
-        deploy=deploy
+        deploy=deploy,
+        conversion=conversion,
+        conversion_set_y=conversion_set_y
         )
 
-def RepSpikeFormerA0_mini(num_classes=10, deploy=False):
+def RepSpikeFormerA0_mini(num_classes=10, deploy=False, conversion=False, conversion_set_y=True):
     return RepSpikeFormer(
         img_size=(128,128),
         patch_size=(16,16),
@@ -548,11 +610,13 @@ def RepSpikeFormerA0_mini(num_classes=10, deploy=False):
         scs_kernel=3, #TODO: test for scs_kernel=2
         mlp_depths=[2,2],
         mlp_kernel=1,
-        deploy=deploy
+        deploy=deploy,
+        conversion=conversion,
+        conversion_set_y=conversion_set_y
         )
 
 #TODO: implement for dvsgesture for B series
-def RepSpikeFormerB0(num_classes=10, deploy=False):
+def RepSpikeFormerB0(num_classes=10, deploy=False, conversion=False, conversion_set_y=True):
     return RepSpikeFormer(
         img_size=(128,128),
         patch_size=(16,16),
@@ -563,7 +627,9 @@ def RepSpikeFormerB0(num_classes=10, deploy=False):
         scs_depths=[2,2,2,2],
         mlp_depths=[2,2],
         mlp_kernel=1,
-        deploy=deploy
+        deploy=deploy,
+        conversion=conversion,
+        conversion_set_y=conversion_set_y
     )
 
 model_dict = {

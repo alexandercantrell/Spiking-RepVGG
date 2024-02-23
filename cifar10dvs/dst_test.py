@@ -146,7 +146,7 @@ class Tester:
         elif arch in resnet_model_dict.keys():
             model = resnet_model_dict[arch](num_classes=self.num_classes,block_type=block_type, cnf=cnf, dsnn=dsnn)
         elif arch in spikeformer_model_dict.keys():
-            model = spikeformer_model_dict[arch](num_classes=self.num_classes)
+            model = spikeformer_model_dict[arch](num_classes=self.num_classes,conversion=conversion,conversion_set_y=conversion_set_y)
         else:
             raise NotImplementedError(f"Model {arch} not implemented")
         functional.set_step_mode(model,'m')

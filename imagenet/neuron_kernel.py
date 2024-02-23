@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 from spikingjelly.activation_based.auto_cuda.neuron_kernel import NeuronFPTTKernel, NeuronBPTTKernel, NeuronATGFBase
 from spikingjelly.activation_based.auto_cuda import cfunction, base
@@ -33,7 +34,7 @@ class ConnectingIFNodeBPTTKernel(NeuronBPTTKernel):
     
 class ConnectingIFNodeATGF(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x_seq: torch.Tensor, s_seq:torch.Tensor, v_init: torch.Tensor, v_th: float, v_reset: float or None,
+    def forward(ctx, x_seq: torch.Tensor, s_seq:torch.Tensor, v_init: torch.Tensor, v_th: float, v_reset: Optional[float],
                 forward_kernel: ConnectingIFNodeFPTTKernel, backward_kernel: ConnectingIFNodeBPTTKernel):
         py_dict = {
             'x_seq': x_seq,
