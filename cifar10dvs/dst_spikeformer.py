@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_neuron import ConnLIFNode
-from batchnorm_neuron import BNPLIFNode
+from batchnorm_neuron import BNLIFNode
 from collections import OrderedDict
 
 V_THRESHOLD = 1.0
@@ -36,10 +36,10 @@ class ConversionBlock(nn.Module):
         if deploy:
             scale = torch.ones(1, in_channels, 1, 1)
             bias = torch.zeros(1, in_channels, 1, 1)
-            self.sn = BNPLIFNode(scale, bias, v_threshold=V_THRESHOLD, detach_reset=True)
+            self.sn = BNLIFNode(scale, bias, v_threshold=V_THRESHOLD, detach_reset=True)
         else:
             self.bn = layer.BatchNorm2d(in_channels)
-            self.sn = neuron.ParametricLIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan())
+            self.sn = neuron.LIFNode(v_threshold=V_THRESHOLD, detach_reset=True, surrogate_function=surrogate.ATan())
 
     def forward(self, x):
         if self.deploy:
@@ -64,12 +64,10 @@ class ConversionBlock(nn.Module):
     
     def switch_to_deploy(self):
         pass
-        if isinstance(self.sn, BNPLIFNode):
+        if isinstance(self.sn, BNLIFNode):
             return
         scale, bias = self._bn_tensor(self.bn)
-        w = self.sn.w.data
-        self.sn = BNPLIFNode(scale, bias, v_threshold=V_THRESHOLD, detach_reset=True, step_mode=self.sn.step_mode).to(self.bn.weight)#TODO: fix cupy backend and add backend param later
-        self.sn.w.data = w
+        self.sn = BNLIFNode(scale, bias, v_threshold=V_THRESHOLD, detach_reset=True, step_mode=self.sn.step_mode).to(self.bn.weight)#TODO: fix cupy backend and add backend param later
         self.__delattr__('bn')
         self.deploy=True
 
@@ -579,6 +577,7 @@ class RepSpikeFormer(nn.Module):
         self.patch_embed.switch_to_deploy()
         for block in self.attn_blocks:
             block.switch_to_deploy()
+        self.__delattr__('aac')
         self.deploy=True
 
 def RepSpikeFormerA0(num_classes=10, deploy=False, conversion=False, conversion_set_y=True):
