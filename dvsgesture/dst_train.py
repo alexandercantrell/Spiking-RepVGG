@@ -24,7 +24,7 @@ from fastargs.validation import And, OneOf
 
 from dst_repvgg import get_model_by_name
 
-from spikingjelly.activation_based import neuron, functional
+from spikingjelly.activation_based import neuron, functional, monitor
 from spikingjelly.datasets import dvs128_gesture
 from syops import get_model_complexity_info
 from syops.utils import syops_to_string, params_to_string
@@ -47,6 +47,8 @@ Section('model', 'model details').params(
     resume = Param(str,'checkpoint to load from',default=None),
     cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     block_type = Param(str,'block type',default='spike_connecting'),
+    conversion=Param(bool,'use bnplif',is_flag=True),
+    conversion_set_y=Param(bool,'set y',is_flag=True),
 )
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
@@ -188,11 +190,13 @@ class Trainer:
     @param('model.block_type')
     @param('model.cupy')
     @param('dist.distributed')
+    @param('model.conversion')
+    @param('model.conversion_set_y')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, block_type, cupy, distributed, sync_bn=None):
+    def create_model_and_scaler(self, arch, block_type, cupy, distributed, conversion=False, conversion_set_y = False, sync_bn=None):
         scaler = GradScaler()
         
-        model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type)
+        model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type,conversion=conversion,conversion_set_y=conversion_set_y)
         functional.set_step_mode(model,'m')
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
@@ -236,9 +240,7 @@ class Trainer:
     @param('optim.momentum')
     @param('optim.weight_decay')
     @param('optim.sn_weight_decay')
-    @param('augment.enable_augmentation')
-    @param('augment.smoothing')
-    def create_optimizer(self, lr, momentum, weight_decay, sn_weight_decay, enable_augmentation, smoothing):
+    def create_optimizer(self, lr, momentum, weight_decay, sn_weight_decay):
         # Only do weight decay on non-batchnorm parameters
         all_params = list(self.model.named_parameters())
         print(f"Total number of parameters: {len(all_params)}")
@@ -261,10 +263,7 @@ class Trainer:
             'weight_decay': weight_decay
         }]
         self.optimizer = ch.optim.SGD(param_groups, lr=lr, momentum=momentum)
-        if enable_augmentation and smoothing > 0:
-            self.loss = ch.nn.CrossEntropyLoss(label_smoothing=smoothing)
-        else:
-            self.loss = ch.nn.CrossEntropyLoss()
+        self.loss = ch.nn.CrossEntropyLoss()
 
 
     @param('lr.step_size')
@@ -299,7 +298,12 @@ class Trainer:
         self.log(f'Training time {train_time_str}')
         self.log(f'Max accuracy {self.max_accuracy}')  
         self.calculate_complexity()
-        self._save_results()
+        if hasattr(self.model,'switch_to_deploy'):
+            self.model.switch_to_deploy()
+        stats = self.val_loop()
+        self.log(f"Reparameterized fps: {stats['thru']}")
+        self._save_results(stats)
+        self.calculate_spike_rates()
 
     def calculate_complexity(self):
         self.model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
@@ -320,7 +324,46 @@ class Trainer:
         self.log(f'Total Energy: {self.energy_string}')
         self.log(f'Params: {self.params_string}')
 
+    def calculate_spike_rates(self):
+        model=self.model
+        model.eval()
+        spike_seq_monitor = monitor.OutputMonitor(
+            model, 
+            (
+                neuron.ParametricLIFNode,
+                neuron.LIFNode,
+                neuron.IFNode,
+                connecting_neuron.ParaConnLIFNode,
+                connecting_neuron.ConnLIFNode,
+                ), 
+            lambda x: x.mean().item())
+        spike_rates = None
+
+        cnt = 0
+        with ch.no_grad():
+            with autocast():
+                for images, target in tqdm(self.val_loader):
+                    images = images.to(self.gpu, non_blocking=True).float()
+                    target = target.to(self.gpu, non_blocking=True)
+                    output = self.model(images)
+                    functional.reset_net(model)
+                    if spike_rates is None:
+                        spike_rates = spike_seq_monitor.records
+                    else:
+                        spike_rates = [spike_rates[i]+spike_seq_monitor.records[i] for i in range(len(spike_rates))]
+                    cnt += 1
+                    spike_seq_monitor.clear_recorded_data()
+        spike_rates = [spike_rate/cnt for spike_rate in spike_rates]
+        spike_seq_monitor.remove_hooks()
+        self.log(f'Spike rates: {spike_rates}')
+        if self.gpu==0:
+            with open(os.path.join(self.log_folder, 'spike_rates.json'), 'w+') as handle:
+                json.dump(spike_rates, handle)
+
     def eval_and_log(self):
+        self.calculate_complexity()
+        if hasattr(self.model,'switch_to_deploy'):
+            self.model.switch_to_deploy()
         start_val = time.time()
         stats = self.val_loop()
         val_time = time.time() - start_val
@@ -330,6 +373,8 @@ class Trainer:
                 current_lr=self.optimizer.param_groups[0]['lr'],
                 val_time=val_time
             ))
+        self.calculate_spike_rates()
+        self._save_results(stats)
 
     @param('training.T_train')
     def train_loop(self, T_train=None):
@@ -387,9 +432,11 @@ class Trainer:
                     start = time.time()
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
-                    (output, aac) = self.model(images)
+                    output = self.model(images)
                     functional.reset_net(model)
                     end = time.time()
+                    if type(output) is tuple:
+                        output, aac = output
                     self.meters['top_1'].update(output, target)
                     self.meters['top_5'].update(output, target)
                     batch_size = target.shape[0]
@@ -449,7 +496,7 @@ class Trainer:
             fd.flush()
 
     @param('dist.distributed')
-    def _save_results(self, distributed):
+    def _save_results(self, stats, distributed):
         if distributed:
             dist.barrier()
         results = {
@@ -462,6 +509,7 @@ class Trainer:
             'mac_ops_string': self.mac_ops_string,
             'params_string': self.params_string,
             'max_accuracy': self.max_accuracy,
+            'thru': stats['thru'],
         }
         if self.gpu==0:
             with open(os.path.join(self.log_folder, 'results.json'), 'w+') as handle:

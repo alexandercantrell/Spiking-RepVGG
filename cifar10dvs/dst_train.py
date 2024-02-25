@@ -225,7 +225,9 @@ class Trainer:
         functional.set_step_mode(model,'m')
         if cupy:
             functional.set_backend(model,'cupy',instance=neuron.ParametricLIFNode)
+            functional.set_backend(model,'cupy',instance=neuron.LIFNode)
             functional.set_backend(model,'cupy',instance=connecting_neuron.ParaConnLIFNode)
+            functional.set_backend(model,'cupy',instance=connecting_neuron.ConnLIFNode)
         model = model.to(self.gpu)
 
         if distributed:
@@ -267,9 +269,7 @@ class Trainer:
     @param('optim.weight_decay')
     @param('optim.sn_weight_decay')
     @param('optim.eps')
-    @param('augment.enable_augmentation')
-    @param('augment.smoothing')
-    def create_optimizer(self, lr, optimizer, momentum, weight_decay, sn_weight_decay, eps, enable_augmentation, smoothing):
+    def create_optimizer(self, lr, optimizer, momentum, weight_decay, sn_weight_decay, eps):
         # Only do weight decay on non-batchnorm parameters and non-sn
         all_params = list(self.model.named_parameters())
         print(f"Total number of parameters: {len(all_params)}")
@@ -297,10 +297,7 @@ class Trainer:
             self.optimizer = ch.optim.AdamW(param_groups, lr=lr, eps=eps)
         else:
             raise NotImplementedError(f"Optimizer {optimizer} not implemented")
-        if enable_augmentation and smoothing > 0:
-            self.loss = ch.nn.CrossEntropyLoss(label_smoothing=smoothing)
-        else:
-            self.loss = ch.nn.CrossEntropyLoss()
+        self.loss = ch.nn.CrossEntropyLoss()
 
     @param('training.epochs')
     @param('lr.eta_min')

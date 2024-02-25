@@ -3,6 +3,7 @@ import numpy as np
 import torch.nn as nn
 
 from spikingjelly.activation_based import neuron, layer
+from batchnorm_neuron import BNPLIFNode
 
 def spike_rate(input):
     unique = input.unique()
@@ -222,6 +223,7 @@ MODULES_MAPPING = {
     neuron.IFNode: if_syops_counter_hook,
     neuron.LIFNode: lif_syops_counter_hook,
     neuron.ParametricLIFNode: lif_syops_counter_hook,
+    BNPLIFNode: lif_syops_counter_hook,
 
 }
 
