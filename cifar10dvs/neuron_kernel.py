@@ -217,7 +217,7 @@ class ParametricConnectingLIFNodeATGF(torch.autograd.Function):
 
         return py_dict['grad_x_seq'], py_dict['grad_s_seq'], py_dict['grad_v_init'], None, None,  py_dict['grad_decay'], None, None
     
-class LIFNodeFPTTKernel(NeuronFPTTKernel):
+class ConnectingLIFNodeFPTTKernel(NeuronFPTTKernel):
     def __init__(self, decay_input: bool, hard_reset: bool, dtype: str):
         super().__init__(hard_reset, dtype)
         self.decay_input = decay_input
@@ -246,11 +246,13 @@ class LIFNodeFPTTKernel(NeuronFPTTKernel):
 
         return codes
 
-class LIFNodeBPTTKernel(NeuronBPTTKernel):
+class ConnectingLIFNodeBPTTKernel(NeuronBPTTKernel):
     def __init__(self, decay_input: bool, surrogate_function: Callable, hard_reset: bool, detach_reset: bool, dtype: str):
         super().__init__(surrogate_function, hard_reset, detach_reset, dtype)
         self.decay_input = decay_input
         self.add_param(ctype=f'const {dtype} &', cname='decay')
+        self.add_param(ctype=f'const {dtype} *', cname='s_seq')
+        self.add_param(ctype=f'{dtype} * ', cname='grad_s_seq')
 
     def grad_h_next_to_v(self) -> str:
         return cfunction.sub(z=f'const {self.dtype} grad_h_next_to_v', x=cfunction.constant(None, x=1., dtype=self.dtype), y='decay', dtype=self.dtype)
@@ -268,10 +270,10 @@ class LIFNodeBPTTKernel(NeuronBPTTKernel):
             core_codes.append(cfunction.mul(z='grad_s_seq[t]',x='v_th',y='grad_h',dtype=self.dtype))
         return super().core + '\n' + core_codes.codes
 
-class LIFNodeATGF(torch.autograd.Function):
+class ConnectingLIFNodeATGF(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x_seq: torch.Tensor, s_seq:torch.Tensor, v_init: torch.Tensor, v_th: float, v_reset: Optional[float], decay: float,
-                forward_kernel: LIFNodeFPTTKernel, backward_kernel: LIFNodeBPTTKernel):
+                forward_kernel: ConnectingLIFNodeFPTTKernel, backward_kernel: ConnectingLIFNodeBPTTKernel):
         py_dict = {
             'x_seq': x_seq,
             's_seq': s_seq,
