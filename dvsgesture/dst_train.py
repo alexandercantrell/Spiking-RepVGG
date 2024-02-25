@@ -288,7 +288,6 @@ class Trainer:
                 for stat in ['loss','top_1','top_5']:
                     self.tb_writer.add_scalar(f'val_{stat}',val_stats[stat],epoch)
                 self.save_latest(epoch)
-                self.save_checkpoint(epoch,is_best=False)
                 if self.max_accuracy == val_stats['top_1']:
                     self.save_checkpoint(epoch,is_best=True)
 
