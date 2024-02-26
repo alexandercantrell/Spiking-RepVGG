@@ -572,6 +572,8 @@ class RepSpikeFormer(nn.Module):
             return x, y
         
     def switch_to_deploy(self):
+        if self.deploy:
+            return
         if self.converter is not None:
             self.converter.switch_to_deploy()
         self.patch_embed.switch_to_deploy()
