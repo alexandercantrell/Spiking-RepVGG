@@ -32,6 +32,7 @@ from syops import get_model_complexity_info
 from syops.utils import syops_to_string, params_to_string
 from ops import MODULES_MAPPING
 import connecting_neuron
+import batchnorm_neuron
 from connecting_functions import ConnectingFunction
 import autoaugment
 from timm.data import Mixup
@@ -368,6 +369,8 @@ class Trainer:
                 neuron.IFNode,
                 connecting_neuron.ParaConnLIFNode,
                 connecting_neuron.ConnLIFNode,
+                batchnorm_neuron.BNLIFNode,
+                batchnorm_neuron.BNPLIFNode
                 ), 
             lambda x: x.mean().item())
         spike_rates = None
