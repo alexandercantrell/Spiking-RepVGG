@@ -45,8 +45,10 @@ def parse_results(folder):
                     params = json.load(open(os.path.join(tag_path, 'params.json')))
                     if os.path.exists(os.path.join(tag_path,'pt','best_checkpoint.pth')):
                         check_path = os.path.join(tag_path,'pt','best_checkpoint.pth')
-                    else:
+                    elif os.path.exists(os.path.join(tag_path,'pt','best_checkpoint.pt')):
                         check_path = os.path.join(tag_path,'pt','best_checkpoint.pt')
+                    else:
+                        continue
                     checkpoint = torch.load(check_path,map_location='cpu')
                     results.append({
                         'dataset': dataset,
