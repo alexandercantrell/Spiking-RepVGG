@@ -269,132 +269,6 @@ class SpikeResNetBlock(nn.Module):
         self.__delattr__('bn2')
 
         self.deploy=True
-
-class SpikeConnResNetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride, groups=1, deploy=False, dsnn=False):
-        super(SpikeConnResNetBlock, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.stride = stride
-        self.groups = groups
-        self.deploy = deploy
-        self.dsnn = dsnn
-        self.identity = stride==1 and in_channels==out_channels
-
-        if self.deploy:
-            self.reparam_conv1 = layer.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, groups=groups, padding=1, bias=True)
-            self.sn1 = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
-            self.reparam_conv2 = layer.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, groups=groups, padding=1, bias=True)
-            if self.identity:
-                self.reparam_skip = nn.Identity()
-                self.sn2 = ParaConnLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
-                if self.dsnn:
-                    self.aac = nn.Identity()
-            else:
-                self.reparam_skip = layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=True)
-                self.sn2 = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
-                if self.dsnn:
-                    self.aac = AACBlock(in_channels, out_channels, stride=stride, deploy=True)
-        else:
-            self.conv1 = layer.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, groups=groups, padding=1, bias=False)
-            self.bn1 = layer.BatchNorm2d(out_channels)
-            self.sn1 = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
-            self.conv2 = layer.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, groups=groups, padding=1, bias=False)
-            self.bn2 = layer.BatchNorm2d(out_channels)
-            if self.identity:
-                self.skip = nn.Identity()
-                self.aac = nn.Identity()
-                self.sn2 = ParaConnLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
-            else:
-                self.skip = nn.Sequential(
-                    OrderedDict([
-                        ('conv', layer.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=False)),
-                        ('bn', layer.BatchNorm2d(out_channels)),
-                    ])
-                )
-                self.aac = AACBlock(in_channels, out_channels, stride=stride)
-                self.sn2 = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
-        
-    def forward(self, x):
-        if self.deploy:
-            if self.dsnn:
-                x,y = x
-                out = self.reparam_conv2(self.sn1(self.reparam_conv1(x)))
-                skip = self.reparam_skip(x)
-                if y is not None:
-                    y = self.aac(y) + out
-                else:
-                    y = out
-                if self.identity:
-                    return self.sn2(out,skip), y
-                else:
-                    return self.sn2(out+skip), y
-            else:
-                if self.identity:
-                    return self.sn2(self.reparam_conv2(self.sn1(self.reparam_conv1(x)))), self.reparam_skip(x)
-                else:
-                    return self.sn2(self.reparam_conv2(self.sn1(self.reparam_conv1(x))) + self.reparam_skip(x))
-        else:
-            x,y = x
-            out = self.bn2(self.conv2(self.sn1(self.bn1(self.conv1(x)))))
-            skip = self.skip(x)
-            if y is not None:
-                y = self.aac(y) + out
-            elif self.training or self.dsnn:
-                y = out
-            if self.identity:
-                return self.sn2(out, skip), y
-            else:
-                return self.sn2(out+skip), y
-        
-    def _fuse_bn_tensor(self, conv, bn):
-        kernel = conv.weight
-        running_mean = bn.running_mean
-        running_var = bn.running_var
-        gamma = bn.weight
-        beta = bn.bias
-        eps = bn.eps
-        std = torch.sqrt(running_var + eps)
-        t = (gamma / std).reshape(-1, 1, 1, 1)
-        return kernel * t, beta - running_mean * gamma / std
-
-    def switch_to_deploy(self):
-        if self.deploy:
-            return
-        kernel1, bias1 = self._fuse_bn_tensor(self.conv1, self.bn1)
-        self.reparam_conv1 = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=3, stride=self.stride, groups=self.groups, padding=1, bias=True, step_mode=self.conv1.step_mode).to(self.conv1.weight.device)
-        self.reparam_conv1.weight.data = kernel1
-        self.reparam_conv1.bias.data = bias1
-
-        kernel2, bias2 = self._fuse_bn_tensor(self.conv2, self.bn2)
-        self.reparam_conv2 = layer.Conv2d(self.out_channels, self.out_channels, kernel_size=3, stride=1, groups=self.groups, padding=1, bias=True, step_mode=self.conv2.step_mode).to(self.conv2.weight.device)
-        self.reparam_conv2.weight.data = kernel2
-        self.reparam_conv2.bias.data = bias2
-
-        if not self.identity:
-            kernel3, bias3 = self._fuse_bn_tensor(self.skip.conv, self.skip.bn)
-            self.reparam_skip = layer.Conv2d(self.in_channels, self.out_channels, kernel_size=1, stride=self.stride, bias=True, step_mode=self.skip.conv.step_mode).to(self.skip.conv.weight.device)
-            self.reparam_skip.weight.data = kernel3
-            self.reparam_skip.bias.data = bias3
-        else:
-            self.reparam_skip = nn.Identity().to(self.conv1.weight.device)
-
-        w = self.sn2.w.data
-        self.sn2 = neuron.ParametricLIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan(), step_mode=self.sn2.step_mode).to(self.conv1.weight.device)
-        self.sn2.w.data = w
-
-        if not self.dsnn:
-            self.__delattr__('aac')
-        elif isinstance(self.aac, AACBlock):
-            self.aac.switch_to_deploy()
-
-        self.__delattr__('conv1')
-        self.__delattr__('bn1')
-        self.__delattr__('conv2')
-        self.__delattr__('bn2')
-
-        self.deploy=True 
-        
         
 class SEWResNetBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride, groups=1, cnf='AND', deploy=False, dsnn=False):
@@ -529,8 +403,6 @@ class S7BNet(nn.Module):
         self.dsnn = dsnn
         if cfg_dict['block_type'] == 'spike':
             self.block = SpikeResNetBlock
-        elif cfg_dict['block_type'] == 'spike_connecting':
-            self.block = SpikeConnResNetBlock
         elif cfg_dict['block_type'] == 'sew':
             self.block = partial(SEWResNetBlock, cnf=cfg_dict['cnf'])
 
@@ -586,7 +458,7 @@ class S7BNet(nn.Module):
         if self.deploy:
             return
         for m in self.convs.modules():
-            if isinstance(m, (SpikeResNetBlock, SpikeConnResNetBlock, SEWResNetBlock, DSTUpChannelBlock)):
+            if isinstance(m, (SpikeResNetBlock, SEWResNetBlock, DSTUpChannelBlock)):
                 m.switch_to_deploy()
         if not self.dsnn:
             self.__delattr__('aac')
