@@ -20,7 +20,7 @@ from argparse import ArgumentParser
 from fastargs import get_current_config
 from fastargs.decorators import param
 from fastargs import Param, Section
-from fastargs.validation import And, OneOf
+from fastargs.validation import OneOf
 
 from dst_repvgg import model_dict as repvgg_model_dict
 from dst_resnet import model_dict as resnet_model_dict
@@ -370,7 +370,7 @@ class Trainer:
                 connecting_neuron.ParaConnLIFNode,
                 connecting_neuron.ConnLIFNode,
                 batchnorm_neuron.BNLIFNode,
-                batchnorm_neuron.BNPLIFNode
+                batchnorm_neuron.BNPLIFNode,
                 ), 
             lambda x: x.mean().item())
         spike_rates = None
@@ -389,7 +389,7 @@ class Trainer:
                 for images, target in tqdm(self.val_loader):
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
-                    output = self.model(images)
+                    output = model(images)
                     functional.reset_net(model)
                     if spike_rates is None:
                         spike_rates = spike_seq_monitor.records
@@ -449,7 +449,7 @@ class Trainer:
                 target_for_compu_acc = target
             
             with autocast():
-                (output, aac) = self.model(images)
+                (output, aac) = model(images)
                 loss_train = self.loss(output, target) + self.loss(aac, target)
             self.scaler.scale(loss_train).backward()
             self.scaler.step(self.optimizer)
@@ -479,12 +479,12 @@ class Trainer:
                     start = time.time()
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
-                    output = self.model(images)
+                    output = model(images)
                     functional.reset_net(model)
                     end = time.time()
                     if type(output) is tuple:
                         output, aac = output
-                    if hasattr(self.model,'dsnn') and self.model.dsnn:
+                    if hasattr(model,'dsnn') and model.dsnn:
                         loss_val = self.loss(output,target) + self.loss(aac,target)
                         output = output + aac
                     else:

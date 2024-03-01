@@ -8,7 +8,6 @@ import torchmetrics
 from torchvision import transforms
 import numpy as np
 from tqdm import tqdm
-import math
 
 import shutil
 
@@ -20,7 +19,6 @@ from argparse import ArgumentParser
 from fastargs import get_current_config
 from fastargs.decorators import param
 from fastargs import Param, Section
-from fastargs.validation import And, OneOf
 
 from dst_repvgg import get_model_by_name
 
@@ -332,7 +330,7 @@ class Trainer:
             (
                 neuron.ParametricLIFNode,
                 connecting_neuron.ParaConnLIFNode,
-                batchnorm_neuron.BNPLIFNode
+                batchnorm_neuron.BNPLIFNode,
                 ), 
             lambda x: x.mean().item())
         spike_rates = None
@@ -343,7 +341,7 @@ class Trainer:
                 for images, target in tqdm(self.val_loader):
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
-                    output = self.model(images)
+                    output = model(images)
                     functional.reset_net(model)
                     if spike_rates is None:
                         spike_rates = spike_seq_monitor.records
@@ -400,7 +398,7 @@ class Trainer:
                 images = images[:,sec_list]
 
             with autocast():
-                (output, aac) = self.model(images)
+                (output, aac) = model(images)
                 loss_train = self.loss(output, target) + self.loss(aac, target)
             self.scaler.scale(loss_train).backward()
             self.scaler.step(self.optimizer)
@@ -430,7 +428,7 @@ class Trainer:
                     start = time.time()
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
-                    output = self.model(images)
+                    output = model(images)
                     functional.reset_net(model)
                     end = time.time()
                     if type(output) is tuple:

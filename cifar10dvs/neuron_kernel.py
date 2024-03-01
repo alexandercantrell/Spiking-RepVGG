@@ -47,7 +47,6 @@ class ParametricConnectingLIFNodeBPTTKernel(NeuronBPTTKernel):
         self.add_param(ctype=f'float *', cname='grad_decay')
         # float to avoid overflow
         self.add_param(ctype=f'const {dtype} *', cname='v_v_seq')
-        self.add_param(ctype=f'const {dtype} *', cname='s_seq')
         self.add_param(ctype=f'{dtype} * ', cname='grad_s_seq')
 
     def grad_h_next_to_v(self) -> str:
@@ -189,7 +188,7 @@ class ParametricConnectingLIFNodeATGF(torch.autograd.Function):
         if 'v_reset' not in py_dict:
             py_dict['v_reset'] = None
 
-        NeuronATGFBase.ctx_save(ctx, requires_grad, py_dict['h_seq'], py_dict['v_v_seq'], py_dict['s_seq'], blocks=blocks, threads=threads,
+        NeuronATGFBase.ctx_save(ctx, requires_grad, py_dict['h_seq'], py_dict['v_v_seq'], blocks=blocks, threads=threads,
                            numel=py_dict['numel'], N=py_dict['N'], v_th=py_dict['v_th'], v_reset=py_dict['v_reset'],
                            backward_kernel=backward_kernel, decay=py_dict['decay'])
 
@@ -203,7 +202,6 @@ class ParametricConnectingLIFNodeATGF(torch.autograd.Function):
         py_dict['decay'] = ctx.decay
         py_dict['grad_decay'] = torch.zeros_like(ctx.decay, dtype=torch.float)
         py_dict['v_v_seq'] = ctx.saved_tensors[1]
-        py_dict['s_seq'] = ctx.saved_tensors[2]
         py_dict['grad_s_seq'] = torch.zeros_like(grad_spike_seq, dtype=grad_spike_seq.dtype)
 
 
@@ -251,7 +249,6 @@ class ConnectingLIFNodeBPTTKernel(NeuronBPTTKernel):
         super().__init__(surrogate_function, hard_reset, detach_reset, dtype)
         self.decay_input = decay_input
         self.add_param(ctype=f'const {dtype} &', cname='decay')
-        self.add_param(ctype=f'const {dtype} *', cname='s_seq')
         self.add_param(ctype=f'{dtype} * ', cname='grad_s_seq')
 
     def grad_h_next_to_v(self) -> str:
@@ -292,7 +289,7 @@ class ConnectingLIFNodeATGF(torch.autograd.Function):
         if 'v_reset' not in py_dict:
             py_dict['v_reset'] = None
 
-        NeuronATGFBase.ctx_save(ctx, requires_grad, py_dict['h_seq'], py_dict['s_seq'], blocks=blocks, threads=threads,
+        NeuronATGFBase.ctx_save(ctx, requires_grad, py_dict['h_seq'], blocks=blocks, threads=threads,
                            numel=py_dict['numel'], N=py_dict['N'], v_th=py_dict['v_th'], v_reset=py_dict['v_reset'],
                            backward_kernel=backward_kernel, decay=py_dict['decay'])
 
@@ -304,7 +301,6 @@ class ConnectingLIFNodeATGF(torch.autograd.Function):
 
         backward_kernel, blocks, threads, py_dict = NeuronATGFBase.pre_backward(ctx, grad_spike_seq, grad_v_seq)
         py_dict['decay'] = ctx.decay
-        py_dict['s_seq'] = ctx.saved_tensors[1]
         py_dict['grad_s_seq'] = torch.zeros_like(grad_spike_seq, dtype=grad_spike_seq.dtype)
 
         if py_dict['v_reset'] is None:

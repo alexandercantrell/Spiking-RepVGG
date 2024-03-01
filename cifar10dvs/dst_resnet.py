@@ -4,7 +4,6 @@ from functools import partial
 import torch.nn as nn
 from spikingjelly.activation_based import layer, neuron, surrogate
 from connecting_functions import ConnectingFunction
-from connecting_neuron import ParaConnLIFNode
 
 class AACBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1, deploy=False):

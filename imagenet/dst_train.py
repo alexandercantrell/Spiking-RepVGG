@@ -2,36 +2,34 @@ import datetime
 import torch as ch
 from torch.cuda.amp import GradScaler
 from torch.cuda.amp import autocast
-import torch.nn.functional as F
 import torch.distributed as dist
 from torch.utils.tensorboard import SummaryWriter
 import torchmetrics
+import torchvision
+from torchvision import transforms
 import numpy as np
 from tqdm import tqdm
+import math
 
 import shutil
 
 import os
 import time
 import json
-from typing import List
 from argparse import ArgumentParser
 
 from fastargs import get_current_config
 from fastargs.decorators import param
 from fastargs import Param, Section
-from fastargs.validation import And, OneOf
-
-import torchvision
-from torchvision import transforms
 
 from dst_repvgg import get_model_by_name
+
+from spikingjelly.activation_based import neuron, functional, monitor
 from syops import get_model_complexity_info
 from syops.utils import syops_to_string, params_to_string
 from ops import MODULES_MAPPING
 import connecting_neuron
-
-from spikingjelly.activation_based import neuron, functional
+import batchnorm_neuron
 
 SEED=2020
 import random
@@ -48,9 +46,11 @@ IMAGENET_CLASSES = 1000
 
 Section('model', 'model details').params(
     arch=Param(str, 'model arch', required=True),
-    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
     resume = Param(str,'checkpoint to load from',default=None),
-    block_type = Param(str,'block type',default='spike_connecting')
+    cupy = Param(bool,'use cupy backend for neurons',is_flag=True),
+    block_type = Param(str,'block type',default='spike_connecting'),
+    conversion = Param(bool,'use bnif',is_flag=True),
+    conversion_set_y = Param(bool,'use bnif',is_flag=True),
 )
 
 Section('model').enable_if(lambda cfg: cfg['dist.distributed']==True).params(
@@ -145,7 +145,8 @@ class Trainer:
             batch_size=batch_size,
             sampler=train_sampler,
             num_workers=num_workers,
-            pin_memory=True
+            pin_memory=True,
+            drop_last=True
         )
     
     @param('data.num_workers')
@@ -156,7 +157,8 @@ class Trainer:
             batch_size=batch_size,
             sampler=val_sampler,
             num_workers=num_workers,
-            pin_memory=True
+            pin_memory=True,
+            drop_last=False
         )
 
     @param('data.path')
@@ -215,11 +217,13 @@ class Trainer:
     @param('model.cupy')
     @param('data.T')
     @param('dist.distributed')
+    @param('model.conversion')
+    @param('model.conversion_set_y')
     @param('model.sync_bn')
-    def create_model_and_scaler(self, arch, block_type, cupy, T, distributed, sync_bn=None):
+    def create_model_and_scaler(self, arch, block_type, cupy, T, distributed, conversion=False, conversion_set_y=False, sync_bn=None):
         scaler = GradScaler()
         
-        model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type,T=T)
+        model = get_model_by_name(arch)(num_classes=self.num_classes,block_type=block_type,T=T,conversion=conversion,conversion_set_y=conversion_set_y)
         if T>0:
             functional.set_step_mode(model,'m')
         else:
@@ -304,11 +308,17 @@ class Trainer:
         self.log(f'Training time {train_time_str}')
         self.log(f'Max accuracy {self.max_accuracy}')
         self.calculate_complexity()
-        self._save_results()
+        if hasattr(self.model,'switch_to_deploy'):
+            self.model.switch_to_deploy()
+        stats = self.val_loop()
+        self.log(f"Reparameterized fps: {stats['thru']}")
+        self._save_results(stats)
+        self.caclulate_spike_rates()
 
     def calculate_complexity(self):
         self.model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
-        self.model.switch_to_deploy()
+        if hasattr(self.model, 'switch_to_deploy'):
+            self.model.switch_to_deploy()
         ops, params = get_model_complexity_info(self.model, (3, 128, 128), self.val_loader, as_strings=False,
                                                  print_per_layer_stat=True, verbose=True, custom_modules_hooks=MODULES_MAPPING)
         self.syops_count = ops
@@ -325,7 +335,46 @@ class Trainer:
         self.log(f'Total Energy: {self.energy_string}')
         self.log(f'Params: {self.params_string}')
 
+    def calculate_spike_rates(self):
+        model = self.model
+        model.eval()
+        spike_seq_monitor = monitor.OutputMonitor(
+            model,
+            (
+                neuron.IFNode,
+                connecting_neuron.ConnIFNode,
+                batchnorm_neuron.BNIFNode,
+            ),
+            lambda x: x.mean().item()
+        )
+        spike_rates = None
+
+        cnt = 0
+        with ch.no_grad():
+            with autocast():
+                for images, target in tqdm(self.val_loader):
+                    images = images.to(self.gpu, non_blocking=True).float()
+                    target = target.to(self.gpu, non_blocking=True)
+                    images = self.preprocess(images)
+                    output = model(images)
+                    functional.reset_net(model)
+                    if spike_rates is None:
+                        spike_rates = spike_seq_monitor.records
+                    else:
+                        spike_rates = [spike_rates[i] + spike_seq_monitor.records[i] for i in range(len(spike_rates))]
+                    cnt += 1
+                    spike_seq_monitor.clear_recorded_data()
+        spike_rates = [spike_rate / cnt for spike_rate in spike_rates]
+        spike_seq_monitor.remove_hooks()
+        self.log(f'Spike rates: {spike_rates}')
+        if self.gpu == 0:
+            with open(os.path.join(self.log_folder, 'spike_rates.json'), 'w+') as handle:
+                json.dump(spike_rates, handle)
+        
     def eval_and_log(self):
+        self.calculate_complexity()
+        if hasattr(self.model,'switch_to_deploy'):
+            self.model.switch_to_deploy()
         start_val = time.time()
         stats = self.val_loop()
         val_time = time.time() - start_val
@@ -335,6 +384,8 @@ class Trainer:
                 current_lr=self.optimizer.param_groups[0]['lr'],
                 val_time=val_time
             ))
+        self.calculate_spike_rates()
+        self._save_results(stats)
 
     def train_loop(self):
         model = self.model
@@ -378,9 +429,11 @@ class Trainer:
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
                     images = self.preprocess(images)
-                    (output, aac) = self.model(images)
+                    output = model(images)
                     functional.reset_net(model)
                     end = time.time()
+                    if type(output) is tuple:
+                        output, aac = output
                     self.meters['top_1'].update(output, target)
                     self.meters['top_5'].update(output, target)
                     batch_size = target.shape[0]
@@ -440,7 +493,7 @@ class Trainer:
             fd.flush()
 
     @param('dist.distributed')
-    def _save_results(self, distributed):
+    def _save_results(self, stats, distributed):
         if distributed:
             dist.barrier()
         results = {
@@ -453,6 +506,7 @@ class Trainer:
             'mac_ops_string': self.mac_ops_string,
             'params_string': self.params_string,
             'max_accuracy': self.max_accuracy,
+            'thru': stats['thru'],
         }
         if self.gpu==0:
             with open(os.path.join(self.log_folder, 'results.json'), 'w+') as handle:

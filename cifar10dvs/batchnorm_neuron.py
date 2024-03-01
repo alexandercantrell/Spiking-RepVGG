@@ -2,7 +2,6 @@ import math
 from typing import Callable
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from spikingjelly.activation_based.neuron import BaseNode
 from spikingjelly.activation_based import surrogate
 import neuron_kernel
@@ -20,6 +19,8 @@ class BNPLIFNode(BaseNode):
             scale = scale.reshape(1, -1, 1, 1)
         self.scale = scale
         self.v_threshold = scale * v_threshold
+        if v_reset is not None:
+            self.v_reset = scale * v_reset
         if bias.shape==1:
             bias = bias.reshape(1, -1, 1, 1)
         self.bias = bias
@@ -96,10 +97,16 @@ class BNPLIFNode(BaseNode):
             if self.cupy_bias is None or self.cupy_thresh.shape[0] != x_seq.shape[1]:
                 self.cupy_bias = self.bias.repeat(x_seq.shape[1], 1, 1, 1).to(x_seq)
 
+            if self.cupy_reset is None or self.cupy_reset.shape[0] != x_seq.shape[1]:
+                if self.v_reset is None:
+                    self.cupy_reset = torch.zeros_like(self.cupy_thresh)
+                else:
+                    self.cupy_reset = self.v_reset.repeat(x_seq.shape[1], 1, 1, 1).to(x_seq)
+
             self.v_float_to_tensor(x_seq[0])
 
             spike_seq, v_seq = neuron_kernel.ParametricBNLIFNodeATGF.apply(
-                x_seq.flatten(1),self.v.flatten(0),self.cupy_thresh.flatten(0), self.cupy_bias.flatten(0), self.v_reset, self.w.sigmoid().to(x_seq),
+                x_seq.flatten(1),self.v.flatten(0),self.cupy_thresh.flatten(0), self.cupy_bias.flatten(0), self.cupy_reset.flatten(0), self.w.sigmoid().to(x_seq),
                 self.forward_kernel)
             spike_seq = spike_seq.reshape(x_seq.shape)
             v_seq = v_seq.reshape(x_seq.shape)
@@ -364,6 +371,8 @@ class BNLIFNode(BaseNode):
                 return self._multi_step_forward(x_seq)
             elif self.backend == 'cupy':
                 raise NotImplementedError(self.backend) #TODO: add cupy code and add to supported backends
+            else:
+                raise ValueError(self.backend)
         else:
             self.v_float_to_tensor(x_seq[0])
             if self.v_reset is None:

@@ -14,7 +14,6 @@ from argparse import ArgumentParser
 from fastargs import get_current_config
 from fastargs.decorators import param
 from fastargs import Param, Section
-from fastargs.validation import And, OneOf
 
 from dst_repvgg import model_dict as repvgg_model_dict
 from dst_resnet import model_dict as resnet_model_dict
