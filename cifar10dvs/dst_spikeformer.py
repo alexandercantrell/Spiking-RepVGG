@@ -599,23 +599,6 @@ def RepSpikeFormerA0(num_classes=10, deploy=False, conversion=False, conversion_
         conversion_set_y=conversion_set_y
         )
 
-def RepSpikeFormerA0_mini(num_classes=10, deploy=False, conversion=False, conversion_set_y=True):
-    return RepSpikeFormer(
-        img_size=(128,128),
-        patch_size=(16,16),
-        in_channels=2,
-        num_classes=num_classes, 
-        embed_dims=256,
-        num_heads=16,
-        scs_depths=[1,1,1,1],
-        scs_kernel=3, #TODO: test for scs_kernel=2
-        mlp_depths=[2,2],
-        mlp_kernel=1,
-        deploy=deploy,
-        conversion=conversion,
-        conversion_set_y=conversion_set_y
-        )
-
 #TODO: implement for dvsgesture for B series
 def RepSpikeFormerB0(num_classes=10, deploy=False, conversion=False, conversion_set_y=True):
     return RepSpikeFormer(
@@ -635,7 +618,6 @@ def RepSpikeFormerB0(num_classes=10, deploy=False, conversion=False, conversion_
 
 model_dict = {
     'RepSpikeFormerA0': RepSpikeFormerA0,
-    'RepSpikeFormerA0_mini': RepSpikeFormerA0_mini,
     'RepSpikeFormerB0': RepSpikeFormerB0,
 }
 
