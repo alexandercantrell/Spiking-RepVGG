@@ -386,7 +386,7 @@ class Trainer:
         cnt = 0
         with ch.no_grad():
             with autocast():
-                for images, target in tqdm(self.val_loader):
+                for images, target in tqdm(self.val_loader, disable=self.gpu!=0):
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
                     output = model(images)
@@ -432,7 +432,7 @@ class Trainer:
         model = self.model
         model.train()
 
-        for images, target in tqdm(self.train_loader):
+        for images, target in tqdm(self.train_loader, disable=self.gpu!=0):
             start = time.time()
             self.optimizer.zero_grad(set_to_none=True)
             images = images.to(self.gpu, non_blocking=True).float()
@@ -475,7 +475,7 @@ class Trainer:
 
         with ch.no_grad():
             with autocast():
-                for images, target in tqdm(self.val_loader):
+                for images, target in tqdm(self.val_loader, disable=self.gpu!=0):
                     start = time.time()
                     images = images.to(self.gpu, non_blocking=True).float()
                     target = target.to(self.gpu, non_blocking=True)
