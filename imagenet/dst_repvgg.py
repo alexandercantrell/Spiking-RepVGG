@@ -72,7 +72,7 @@ class ConversionBlock(nn.Module):
         self.deploy=True
 
 class SpikeRepVGGBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride, groups=1, deploy=False):
+    def __init__(self, in_channels, out_channels, stride, groups=1, deploy=False, use_aac=True):
         super(SpikeRepVGGBlock, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -89,7 +89,7 @@ class SpikeRepVGGBlock(nn.Module):
             self.bn = layer.BatchNorm2d(out_channels)
             if self.identity:
                 self.aac = nn.Identity()
-            else:
+            elif use_aac:
                 self.aac = convrelupxp(in_channels, out_channels, stride)
         self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
 
@@ -162,7 +162,7 @@ class SpikeRepVGGBlock(nn.Module):
         self.deploy=True
     
 class SpikeConnRepVGGBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, stride, groups=1, deploy=False):
+    def __init__(self, in_channels, out_channels, stride, groups=1, deploy=False, use_aac=True):
         super(SpikeConnRepVGGBlock, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -181,7 +181,7 @@ class SpikeConnRepVGGBlock(nn.Module):
             if self.identity:
                 self.aac = nn.Identity()
                 self.sn = ConnIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
-            else:
+            elif use_aac:
                 self.aac = convrelupxp(in_channels, out_channels, stride)
                 self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
             
@@ -273,13 +273,16 @@ class SRepVGG(nn.Module):
         self.cur_layer_idx=0
         self.T = T
         in_channels=3
+        first_block=True #hack to avoid ddp crash from aap in first layer. TODO: fix
         layer_list = cfg_dict['layers']
         convs = nn.Sequential()
         if conversion:
-            convs.append(ConversionBlock(in_channels, deploy=deploy, set_y=conversion_set_y))
+            convs.append(ConversionBlock(in_channels, deploy=deploy))
+            first_block=False
         for layer_dict in layer_list:
-            convs.extend(self._build_layer(in_channels, layer_dict))
+            convs.extend(self._build_layer(in_channels, layer_dict, first_block))
             in_channels = layer_dict['channels']
+            first_block=False
         self.convs = convs
 
         self.avgpool = layer.AdaptiveAvgPool2d((1,1))
@@ -288,11 +291,11 @@ class SRepVGG(nn.Module):
         if not self.deploy:
             self.aac = layer.Linear(in_channels, num_classes)
 
-    def _build_layer(self, in_channels, layer_dict):
+    def _build_layer(self, in_channels, layer_dict, first_block=False):
         channels = layer_dict['channels']
         stride = layer_dict['stride']
         convs = nn.Sequential()
-        convs.append(self.block(in_channels, channels, stride, groups = self.override_groups_map.get(self.cur_layer_idx, 1), deploy=self.deploy))
+        convs.append(self.block(in_channels, channels, stride, groups = self.override_groups_map.get(self.cur_layer_idx, 1), deploy=self.deploy, use_aac=not first_block))
         self.cur_layer_idx += 1
         for _ in range(layer_dict['num_blocks'] - 1):
             convs.append(self.block(channels, channels, 1, groups = self.override_groups_map.get(self.cur_layer_idx, 1), deploy=self.deploy))
