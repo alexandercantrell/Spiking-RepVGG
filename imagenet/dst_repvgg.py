@@ -181,8 +181,9 @@ class SpikeConnRepVGGBlock(nn.Module):
             if self.identity:
                 self.aac = nn.Identity()
                 self.sn = ConnIFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
-            elif use_aac:
-                self.aac = convrelupxp(in_channels, out_channels, stride)
+            else:
+                if use_aac:
+                    self.aac = convrelupxp(in_channels, out_channels, stride)
                 self.sn = neuron.IFNode(v_threshold=1.0, detach_reset=True, surrogate_function=surrogate.ATan())
             
     def forward(self, x):
