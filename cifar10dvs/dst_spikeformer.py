@@ -167,7 +167,8 @@ class Rep3x3(nn.Module):
         self.__delattr__('conv1x1')
         self.__delattr__('bn3x3')
         self.__delattr__('bn')
-        self.__delattr__('aac')
+        if hasattr(self, 'aac'):
+            self.__delattr__('aac')
         self.deploy=True
 
 class Rep1x1(nn.Module):
@@ -245,7 +246,8 @@ class Rep1x1(nn.Module):
         #    para.detach_()
         self.__delattr__('conv1x1')
         self.__delattr__('bn')
-        self.__delattr__('aac')
+        if hasattr(self, 'aac'):
+            self.__delattr__('aac')
         self.deploy=True
 
 class RepMLP(nn.Module):

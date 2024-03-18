@@ -161,7 +161,8 @@ class SpikeRepVGGBlock(nn.Module):
         self.__delattr__('conv1x1')
         self.__delattr__('bn3x3')
         self.__delattr__('bn')
-        self.__delattr__('aac')
+        if hasattr(self, 'aac'):
+            self.__delattr__('aac')
         self.deploy=True
     
 class SpikeConnRepVGGBlock(nn.Module):
@@ -261,7 +262,8 @@ class SpikeConnRepVGGBlock(nn.Module):
         self.__delattr__('conv1x1')
         self.__delattr__('bn3x3')
         self.__delattr__('bn')
-        self.__delattr__('aac')
+        if hasattr(self, 'aac'):
+            self.__delattr__('aac')
         self.deploy=True
 
 class SRepVGG(nn.Module):

@@ -130,7 +130,7 @@ class DSTUpChannelBlock(nn.Module):
         self.reparam.conv.weight.data = kernel
         self.reparam.conv.bias.data = bias
         self.reparam.sn.w.data = self.conv.sn.w.data
-        if not self.dsnn:
+        if hasattr(self,'aac') and (not self.dsnn):
             self.__delattr__('aac')
         else:
             self.aac.switch_to_deploy()
