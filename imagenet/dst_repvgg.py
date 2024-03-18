@@ -281,7 +281,7 @@ class SRepVGG(nn.Module):
             convs.append(ConversionBlock(in_channels, deploy=deploy))
             first_block=False
         for layer_dict in layer_list:
-            convs.extend(self._build_layer(in_channels, layer_dict, first_block))
+            convs.extend(self._build_layer(in_channels, layer_dict, first_block=first_block))
             in_channels = layer_dict['channels']
             first_block=False
         self.convs = convs

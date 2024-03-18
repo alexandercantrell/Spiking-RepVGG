@@ -54,7 +54,7 @@ class AACBlock(nn.Module):
         self.deploy=True
     
 class DSTUpChannelBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, deploy=False, dsnn=False):
+    def __init__(self, in_channels, out_channels, deploy=False, dsnn=False, use_aac=True):
         super(DSTUpChannelBlock, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -82,7 +82,7 @@ class DSTUpChannelBlock(nn.Module):
             )
             if in_channels == out_channels:
                 self.aac = nn.Identity()
-            else:
+            elif use_aac:
                 self.aac = AACBlock(in_channels, out_channels)
     
     def forward(self, x):
@@ -407,10 +407,12 @@ class S7BNet(nn.Module):
 
         in_channels=2
         layer_list = cfg_dict['layers']
+        first_block = True #hack to avoid ddp crash from aap in first layer. TODO: fix
         convs = nn.Sequential()
         for layer_dict in layer_list:
-            convs.extend(self._build_layer(in_channels, layer_dict))
+            convs.extend(self._build_layer(in_channels, layer_dict, first_block=first_block))
             in_channels = layer_dict['channels']
+            first_block=False
         self.convs = convs
 
         self.flatten = nn.Flatten(2)
@@ -426,11 +428,11 @@ class S7BNet(nn.Module):
         if not self.deploy or self.dsnn:
             self.aac = layer.Linear(out_features, num_classes, bias=True)
 
-    def _build_layer(self, in_channels, layer_dict):
+    def _build_layer(self, in_channels, layer_dict, first_block=False):
         channels = layer_dict.get('channels', in_channels)
         convs = nn.Sequential()
         if channels != in_channels:
-            convs.append(DSTUpChannelBlock(in_channels, channels, deploy=self.deploy, dsnn=self.dsnn))
+            convs.append(DSTUpChannelBlock(in_channels, channels, deploy=self.deploy, dsnn=self.dsnn, use_aac= not first_block))
         for _ in range(layer_dict['num_blocks']):
             convs.append(self.block(channels, channels, stride=1, deploy=self.deploy, dsnn=self.dsnn))
         if 'k_pool' in layer_dict.keys():

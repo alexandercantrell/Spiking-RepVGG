@@ -115,7 +115,7 @@ class Trainer:
         if distributed:
             self.setup_distributed()
         self.train_loader, self.val_loader = self.create_data_loaders()
-        self.model, self.scaler = self.create_model_and_scaler()
+        self.model, self.model_no_ddp, self.scaler = self.create_model_and_scaler()
         self.start_epoch=0
         self.max_accuracy=-1
         if resume is not None:
@@ -232,13 +232,14 @@ class Trainer:
             functional.set_backend(model,'cupy',instance=neuron.IFNode)
             functional.set_backend(model,'cupy',instance=connecting_neuron.ConnIFNode)
 
-        model = model.to(self.gpu)
+        model_no_ddp = model = model.to(self.gpu)
 
         if distributed:
             if sync_bn: model = ch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             model = ch.nn.parallel.DistributedDataParallel(model, device_ids=[self.gpu])
+            model_no_ddp = model.module
 
-        return model, scaler
+        return model, model_no_ddp, scaler
     
     @param('lr.lr')
     @param('optim.momentum')
@@ -246,7 +247,7 @@ class Trainer:
     @param('optim.sn_weight_decay')
     def create_optimizer(self, lr, momentum, weight_decay, sn_weight_decay):
         # Only do weight decay on non-batchnorm parameters
-        all_params = list(self.model.named_parameters())
+        all_params = list(self.model_no_ddp.named_parameters())
         print(f"Total number of parameters: {len(all_params)}")
         bn_params = [v for k, v in all_params if ('bn' in k) or ('.bias' in k)]
         print(f"Number of batchnorm parameters: {len(bn_params)}")
@@ -307,19 +308,20 @@ class Trainer:
         train_time_str = str(datetime.timedelta(seconds=int(train_time)))
         self.log(f'Training time {train_time_str}')
         self.log(f'Max accuracy {self.max_accuracy}')
-        self.calculate_complexity()
-        if hasattr(self.model,'switch_to_deploy'):
-            self.model.switch_to_deploy()
-        stats = self.val_loop()
-        self.log(f"Reparameterized fps: {stats['thru']}")
-        self._save_results(stats)
-        self.caclulate_spike_rates()
+        if self.gpu==0:
+            self.calculate_complexity()
+            if hasattr(self.model_no_ddp,'switch_to_deploy'):
+                self.model_no_ddp.switch_to_deploy()
+            stats = self.val_loop()
+            self.log(f"Reparameterized fps: {stats['thru']}")
+            self._save_results(stats)
+            self.caclulate_spike_rates()
 
     def calculate_complexity(self):
-        self.model.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
-        if hasattr(self.model, 'switch_to_deploy'):
-            self.model.switch_to_deploy()
-        ops, params = get_model_complexity_info(self.model, (3, 128, 128), self.val_loader, as_strings=False,
+        self.model_no_ddp.load_state_dict(ch.load(os.path.join(self.pt_folder,'best_checkpoint.pt'))['model'], strict=False)
+        if hasattr(self.model_no_ddp, 'switch_to_deploy'):
+            self.model_no_ddp.switch_to_deploy()
+        ops, params = get_model_complexity_info(self.model_no_ddp, (3, 128, 128), self.val_loader, as_strings=False,
                                                  print_per_layer_stat=True, verbose=True, custom_modules_hooks=MODULES_MAPPING)
         self.syops_count = ops
         self.params_count = params
@@ -336,7 +338,7 @@ class Trainer:
         self.log(f'Params: {self.params_string}')
 
     def calculate_spike_rates(self):
-        model = self.model
+        model = self.model_no_ddp
         model.eval()
         spike_seq_monitor = monitor.OutputMonitor(
             model,
@@ -372,20 +374,21 @@ class Trainer:
                 json.dump(spike_rates, handle)
         
     def eval_and_log(self):
-        self.calculate_complexity()
-        if hasattr(self.model,'switch_to_deploy'):
-            self.model.switch_to_deploy()
-        start_val = time.time()
-        stats = self.val_loop()
-        val_time = time.time() - start_val
         if self.gpu == 0:
-            self.log(dict(
-                stats,
-                current_lr=self.optimizer.param_groups[0]['lr'],
-                val_time=val_time
-            ))
-        self.calculate_spike_rates()
-        self._save_results(stats)
+            self.calculate_complexity()
+            if hasattr(self.model_no_ddp,'switch_to_deploy'):
+                self.model_no_ddp.switch_to_deploy()
+            start_val = time.time()
+            stats = self.val_loop()
+            val_time = time.time() - start_val
+            if self.gpu == 0:
+                self.log(dict(
+                    stats,
+                    current_lr=self.optimizer.param_groups[0]['lr'],
+                    val_time=val_time
+                ))
+            self.calculate_spike_rates()
+            self._save_results(stats)
 
     def train_loop(self):
         model = self.model
@@ -516,9 +519,7 @@ class Trainer:
     def _save_checkpoint(self,path,epoch,distributed):
         if distributed:
             dist.barrier()
-            model = self.model.module
-        else:
-            model = self.model
+        model = self.model_no_ddp
         checkpoint = {
             "model": model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
@@ -569,10 +570,7 @@ class Trainer:
         else:
             path = self.get_checkpoint_path()
             checkpoint = ch.load(path,map_location='cpu')
-        if distributed:
-            msg = self.model.module.load_state_dict(checkpoint['model'],strict=False)
-        else:
-            msg = self.model.load_state_dict(checkpoint['model'],strict=False)
+        msg = self.model_no_ddp.load_state_dict(checkpoint['model'],strict=False)
         print(msg)
         self.start_epoch = checkpoint["epoch"] + 1
         self.max_accuracy=checkpoint['max_accuracy']
